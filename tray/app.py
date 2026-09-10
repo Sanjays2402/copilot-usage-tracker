@@ -120,10 +120,15 @@ class TrayApp:
         env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
         cmd = self._server_command()
         _flog(f"starting dashboard server: {os.path.basename(cmd[0])} (port {self.port})")
-        self.server = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
-        )
-        wait_for_port(self.port, timeout=90)
+        # Keep the server's output in a file (not DEVNULL): if the dashboard
+        # ever fails to come up, this is what support -- and the smoke test
+        # -- reads to find out why.
+        server_log = os.path.join(os.path.dirname(_log_file_path() or "."), "dashboard-server.log")
+        _flog(f"dashboard server output -> {server_log}")
+        with open(server_log, "a", encoding="utf-8") as log_fh:
+            self.server = subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT, env=env)
+        # Popen dup'ed the handle for the child; closing ours is safe.
+        wait_for_port(self.port, timeout=150)
         _flog(f"dashboard server up on 127.0.0.1:{self.port}")
 
     def stop_server(self) -> None:

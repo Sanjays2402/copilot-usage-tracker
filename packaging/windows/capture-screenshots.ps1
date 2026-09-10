@@ -115,28 +115,41 @@ Write-Host "phase 3: launch installed app"
 (New-Object -ComObject Shell.Application).MinimizeAll()
 Start-Sleep -Seconds 2
 $app = Start-Process $appExe -PassThru
-Start-Sleep -Seconds 45
-# Focus the app window so the screenshot captures it (not the desktop).
-Focus-Window $app | Out-Null
-Start-Sleep -Seconds 2
-Save-Shot "app-first-run.png"
-Start-Sleep -Seconds 15
-Focus-Window $app | Out-Null
-Start-Sleep -Seconds 2
-Save-Shot "app-first-run-2.png"
 
-# Ground truth: the tray app logs milestones to tray.log. Screenshots can
-# miss the window (focus quirks on headless runners), but the log proves
-# the dashboard server came up and the window was actually shown.
+# Ground truth: the tray app logs milestones to tray.log. Poll for them --
+# a cold Streamlit start on a busy runner can take a couple of minutes.
 $logFile = Join-Path $env:LOCALAPPDATA "Sanjays2402\copilot-usage-tracker\tray.log"
+$serverLogFile = Join-Path $env:LOCALAPPDATA "Sanjays2402\copilot-usage-tracker\dashboard-server.log"
 $logOk = $false
+$shotsTaken = 0
+$deadline = (Get-Date).AddSeconds(300)
+while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 15
+    # Focus the app window so the screenshots capture it (not the desktop).
+    Focus-Window $app | Out-Null
+    $shotsTaken += 1
+    Save-Shot "app-first-run-$shotsTaken.png"
+    if (Test-Path $logFile) {
+        $logText = Get-Content $logFile -Raw
+        if (($logText -match "dashboard server up") -and ($logText -match "dashboard window shown")) {
+            $logOk = $true
+            break
+        }
+    }
+    $app.Refresh()
+    if ($app.HasExited) { break }
+}
+Write-Host "--- tray.log (last 20 lines) ---"
 if (Test-Path $logFile) {
-    $logText = Get-Content $logFile -Raw
-    $logOk = ($logText -match "dashboard server up") -and ($logText -match "dashboard window shown")
-    Write-Host "--- tray.log (last 20 lines) ---"
     Get-Content $logFile | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
 } else {
     Write-Host "tray.log not found at $logFile"
+}
+Write-Host "--- dashboard-server.log (last 30 lines) ---"
+if (Test-Path $serverLogFile) {
+    Get-Content $serverLogFile | Select-Object -Last 30 | ForEach-Object { Write-Host $_ }
+} else {
+    Write-Host "dashboard-server.log not found at $serverLogFile"
 }
 if (-not $logOk) {
     throw "tray.log does not prove the dashboard server and window came up"
