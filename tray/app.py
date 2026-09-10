@@ -90,6 +90,8 @@ class TrayApp:
         self.server: subprocess.Popen | None = None
         self.window = None
         self._icon = None
+        self._webview_ok = False
+        self._stop_event = threading.Event()
 
     # -- local dashboard server ----------------------------------------
     def _server_command(self) -> list[str]:
@@ -161,17 +163,32 @@ class TrayApp:
         return False
 
     def show_dashboard(self, *_) -> None:
-        try:
-            window = self._ensure_window()
-            window.show()
-            _flog("dashboard window shown")
+        if self._webview_ok:
             try:
-                window.restore()
-            except Exception as exc:  # noqa: BLE001 - not all backends support restore
-                _log(f"window restore failed: {exc}")
-        except Exception:  # noqa: BLE001 - webview broken/missing: use browser
-            _flog("webview unavailable, opening dashboard in browser")
-            webbrowser.open(self.url)
+                window = self._ensure_window()
+                window.show()
+                _flog("dashboard window shown")
+                try:
+                    window.restore()
+                except Exception as exc:  # noqa: BLE001 - not all backends support restore
+                    _log(f"window restore failed: {exc}")
+                return
+            except Exception as exc:  # noqa: BLE001 - WebView2 missing etc.
+                _flog(f"webview show failed ({exc!r}), opening dashboard in browser")
+                self._webview_ok = False
+        webbrowser.open(self.url)
+
+    def _init_webview(self) -> bool:
+        """Create the hidden native window. Returns False (with the reason
+        logged) when the platform cannot do webview -- e.g. no WebView2
+        runtime -- so the caller can use the browser fallback instead."""
+        try:
+            self._ensure_window()
+        except Exception as exc:  # noqa: BLE001 - import or create_window failed
+            _flog(f"webview unavailable ({exc!r}), dashboard will open in the browser")
+            return False
+        self._webview_ok = True
+        return True
 
     # -- tray actions ----------------------------------------------------
     def collect_latest(self, *_) -> None:
@@ -239,6 +256,8 @@ class TrayApp:
                     self.window.destroy()
             except Exception as exc:  # noqa: BLE001 - shutting down anyway
                 _log(f"window destroy failed: {exc}")
+            finally:
+                self._stop_event.set()
 
     # -- main loop --------------------------------------------------------
     def run(self) -> None:
@@ -256,14 +275,21 @@ class TrayApp:
         threading.Thread(target=self._icon.run, daemon=True, name="tray-icon").start()
         threading.Thread(target=self._auto_collect_loop, daemon=True, name="auto-collect").start()
 
-        import webview
-
-        self._ensure_window()
+        use_webview = self._init_webview()
         if not _configured():
             # First run: pop the setup page so the user never needs a terminal.
             self.show_dashboard()
-        webview.start()
-        # webview.start() returns after the window is destroyed (Quit)
+        if use_webview:
+            import webview
+
+            webview.start()
+            # webview.start() returns after the window is destroyed (Quit)
+        else:
+            # No native window on this machine (e.g. WebView2 runtime
+            # missing): the dashboard lives in the user's browser and the
+            # tray icon keeps running until Quit.
+            _flog("running without native window; dashboard is in the browser")
+            self._stop_event.wait()
         self.stop_server()
 
 

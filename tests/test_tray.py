@@ -117,3 +117,60 @@ def test_ensure_streamlit_version_fallback(monkeypatch):
     monkeypatch.delitem(_sys.modules, "streamlit.version", raising=False)
     run_dashboard._ensure_streamlit_version()
     assert _sys.modules["streamlit.version"].STREAMLIT_VERSION_STRING == "0.0.0+frozen"
+
+
+def test_init_webview_missing_falls_back(monkeypatch):
+    """No webview installed -> _init_webview False, no exception."""
+    import sys as _sys
+
+    from tray.app import TrayApp
+
+    monkeypatch.setitem(_sys.modules, "webview", None)  # import raises ImportError
+    assert TrayApp()._init_webview() is False
+
+
+def test_init_webview_ok(monkeypatch):
+    import sys as _sys
+    import types
+
+    from tray.app import TrayApp
+
+    fake = types.ModuleType("webview")
+    fake.windows = []
+
+    class FakeEvent:
+        def __init__(self):
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+    class FakeWindow:
+        def __init__(self):
+            self.events = types.SimpleNamespace(closing=FakeEvent())
+
+    def create_window(*_a, **_k):
+        w = FakeWindow()
+        fake.windows.append(w)
+        return w
+
+    fake.create_window = create_window
+    monkeypatch.setitem(_sys.modules, "webview", fake)
+    app = TrayApp()
+    assert app._init_webview() is True
+    assert app._webview_ok is True
+    assert app.window is not None
+
+
+def test_show_dashboard_browser_fallback(monkeypatch):
+    import webbrowser
+
+    from tray.app import TrayApp
+
+    opened = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+    app = TrayApp()
+    app._webview_ok = False
+    app.show_dashboard()
+    assert opened == [app.url]

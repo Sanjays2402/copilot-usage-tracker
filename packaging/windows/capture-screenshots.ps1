@@ -9,8 +9,10 @@
   progress dialog is screenshotted -- waits for it to finish, and verifies
   the installed files.
 
-  Phase 3: launches the installed app and screenshots the first-run setup
-  window.
+  Phase 3: installs the WebView2 runtime (inbox on real Win10/11, missing on
+  the Server runner SKU), launches the installed app, screenshots the
+  first-run setup window, and asserts the dashboard server comes up and
+  serves the app over HTTP (ground truth from tray.log).
 
   Not for end users: end users just double-click the Setup exe.
 #>
@@ -110,17 +112,26 @@ Write-Host "installed OK: $appExe"
 
 # ---- Phase 3: launch the app, screenshot first-run setup -------------------
 Write-Host "phase 3: launch installed app"
+# The native dashboard window needs the WebView2 runtime. Real Windows 10/11
+# machines have it inbox; this Server runner SKU does not, so install it to
+# match a user machine (silent, ~1 min).
+$wvInstaller = Join-Path $env:TEMP "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $wvInstaller
+Start-Process $wvInstaller -ArgumentList "/silent", "/install" -Wait
+Write-Host "webview2 runtime installed"
 # Minimize everything first: the runner's terminal is maximized and would
 # otherwise cover the app window in screenshots.
 (New-Object -ComObject Shell.Application).MinimizeAll()
 Start-Sleep -Seconds 2
 $app = Start-Process $appExe -PassThru
 
-# Ground truth: the tray app logs milestones to tray.log. Poll for them --
-# a cold Streamlit start on a busy runner can take a couple of minutes.
+# Ground truth: the tray app logs milestones to tray.log. Poll for the
+# server-up milestone -- a cold Streamlit start on a busy runner can take
+# a couple of minutes.
 $logFile = Join-Path $env:LOCALAPPDATA "Sanjays2402\copilot-usage-tracker\tray.log"
 $serverLogFile = Join-Path $env:LOCALAPPDATA "Sanjays2402\copilot-usage-tracker\dashboard-server.log"
-$logOk = $false
+$serverUp = $false
+$port = 8501
 $shotsTaken = 0
 $deadline = (Get-Date).AddSeconds(300)
 while ((Get-Date) -lt $deadline) {
@@ -131,8 +142,10 @@ while ((Get-Date) -lt $deadline) {
     Save-Shot "app-first-run-$shotsTaken.png"
     if (Test-Path $logFile) {
         $logText = Get-Content $logFile -Raw
-        if (($logText -match "dashboard server up") -and ($logText -match "dashboard window shown")) {
-            $logOk = $true
+        $m = [regex]::Match($logText, "dashboard server up on 127\.0\.0\.1:(\d+)")
+        if ($m.Success) {
+            $serverUp = $true
+            $port = $m.Groups[1].Value
             break
         }
     }
@@ -151,9 +164,33 @@ if (Test-Path $serverLogFile) {
 } else {
     Write-Host "dashboard-server.log not found at $serverLogFile"
 }
-if (-not $logOk) {
-    throw "tray.log does not prove the dashboard server and window came up"
+if (-not $serverUp) {
+    throw "dashboard server never came up (see tray.log above)"
 }
+
+# The server must actually serve the Streamlit app over HTTP.
+$dashOk = $false
+for ($i = 0; $i -lt 12 -and -not $dashOk; $i++) {
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 10
+        if ($resp.StatusCode -eq 200 -and $resp.Content -match "streamlit") {
+            $dashOk = $true
+        } else {
+            Start-Sleep -Seconds 10
+        }
+    } catch {
+        Start-Sleep -Seconds 10
+    }
+}
+if (-not $dashOk) {
+    throw "dashboard server is up but did not serve the app over HTTP"
+}
+Write-Host "dashboard serves HTTP 200 on port $port"
+
+# Native window is informational: with WebView2 installed it should show;
+# without it the app falls back to the browser by design.
+$windowShown = (Test-Path $logFile) -and ((Get-Content $logFile -Raw) -match "dashboard window shown")
+Write-Host "native dashboard window shown: $windowShown"
 
 # A PyInstaller "Unhandled exception in script" dialog keeps the process
 # alive -- the screenshots above are the verification (reviewed manually),
