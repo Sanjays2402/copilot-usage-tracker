@@ -7,6 +7,7 @@ import json
 import click
 
 from .attribution import attribute_to_teams
+from .billing_reports import BillingReportsClient
 from .budgets import Budget, check_budgets
 from .collector import BillingClient, CopilotReportsClient
 from .config import load_settings
@@ -61,6 +62,57 @@ def collect(day: str, with_teams: bool) -> None:
     click.echo(
         f"Stored {len(users)} user rows, {credits:,.0f} credits "
         f"(${credits_to_usd(credits):,.2f}), {team_count} team rollups for {day}"
+    )
+    store.close()
+
+
+@main.command("export-tokens")
+@click.option("--year", type=int, required=True)
+@click.option("--month", type=int, required=True)
+@click.option(
+    "--report-type",
+    type=click.Choice(["ai_usage", "summarized", "detailed"]),
+    default="ai_usage",
+    help="Billing report type to request",
+)
+def export_tokens(year: int, month: int, report_type: str) -> None:
+    """Pull the AI usage report export (per-model input/output tokens + $).
+
+    Uses the billing reports export API -- the only server-side source of
+    per-user/day/model token counts. Verify the request payload against
+    GitHub's current billing-reports docs if the API rejects it.
+    """
+    settings = load_settings()
+    client = BillingReportsClient(settings)
+    store = UsageStore(settings.db_path)
+    scope = settings.enterprise or settings.org
+
+    payload = {"type": report_type, "year": year, "month": month}
+    click.echo(f"Requesting {report_type} report for {year}-{month:02d} ...")
+    report_id = client.create_report(payload)
+    url = client.wait_for_report(report_id)
+    rows = client.download_csv(url)
+    click.echo(f"Downloaded {len(rows)} rows")
+
+    stored = 0
+    for r in rows:
+        store.upsert_model_day(
+            str(r.get("day") or r.get("date") or f"{year}-{month:02d}-01"),
+            scope,
+            str(r.get("model") or r.get("sku") or "unknown"),
+            user_login=str(r.get("user") or r.get("user_login") or ""),
+            input_tokens=r.get("input", 0),
+            output_tokens=r.get("output", 0),
+            cache_read_tokens=r.get("cache_read", 0),
+            cache_write_tokens=r.get("cache_write", 0),
+            gross_amount_usd=r.get("gross_amount", 0),
+            net_amount_usd=r.get("net_amount", 0),
+        )
+        stored += 1
+    totals = store.model_token_totals(f"{year}-{month:02d}", scope)
+    click.echo(
+        f"Stored {stored} model rows: "
+        f"{totals['input_tokens']:,} input / {totals['output_tokens']:,} output tokens"
     )
     store.close()
 

@@ -6,23 +6,26 @@
       NDJSON download flow)
 - [x] AI-credit billing client (exact per-user/per-model figures from
       GitHub's billing API)
-- [x] SQLite time-series store (per-user, per-scope, per-team daily rows)
+- [x] Billing reports export client (AI usage report CSV: per-model
+      input/output/cache tokens + dollar amounts)
+- [x] SQLite time-series store (per-user, per-scope, per-team, per-model
+      daily rows)
 - [x] AI-credit cost model (`PriceBook`: 1 credit = $0.01, pooled seat
       allowances, overage math)
 - [x] Team attribution via the documented user-teams join
 - [x] Budget checks with warn/breach alerts
-- [x] CLI: `collect`, `report`, `billing`, `budget-check`, `estimate`
+- [x] Streamlit dashboard (overview, teams, users, models & tokens, budgets)
+- [x] CLI: `collect`, `export-tokens`, `report`, `billing`, `budget-check`,
+      `estimate`
 
-## v0.2 -- Attribution & dashboards
-- [ ] Streamlit dashboard (spend over time, per-team leaderboard, top users,
-      acceptance rate)
+## v0.2 -- FinOps depth
 - [ ] Slack/webhook alert delivery for budget breaches
 - [ ] CSV export for finance
 - [ ] Seat optimization report (inactive license holders to reclaim)
-- [ ] Per-model burn analytics (which models/surfaces consume the pool)
 - [ ] Spend forecasting vs. the pooled allowance
+- [ ] Scheduled email digests for engineering leadership
 
-## v0.3 -- FinOps depth
+## v0.3 -- Scale
 - [ ] Warehouse sinks (BigQuery / Snowflake / Postgres)
 - [ ] Multi-org rollup for enterprises with many orgs
 - [ ] Anomaly detection (unusual spend spikes per user/team)
@@ -33,4 +36,3 @@
 ## Future ideas
 - [ ] IDE plugin telemetry (opt-in) for finer-grained token accounting
 - [ ] Chargeback invoicing integration (NetSuite/Stripe)
-- [ ] Scheduled email digests for engineering leadership

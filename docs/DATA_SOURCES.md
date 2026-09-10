@@ -49,6 +49,26 @@ single-day membership snapshot.
 `usageItems` with gross / allowance-covered (`discount`) / net-billed
 quantities **and** amounts -- exact billing figures, not estimates.
 
+Seat assignments (who holds a license, incl. plan type) are available at
+`GET /enterprises/{enterprise}/copilot/billing/seats` (and the org-level
+equivalent) -- useful for the seat-reclamation report.
+
+## Billing reports export: token-level data
+
+No plain REST endpoint returns per-user input/output token counts. The
+**AI usage report** export does: per-user, per-day, per-model rows with
+`input`, `output`, `cache_read`, `cache_write` token columns plus
+gross/discount/net dollar amounts. Access it programmatically:
+
+- `POST /enterprises/{enterprise}/settings/billing/reports` to request
+- `GET .../settings/billing/reports/{report_id}` to poll
+- download the CSV when complete
+
+`BillingReportsClient` in `billing_reports.py` implements this flow and
+`copilot-usage export-tokens` stores the rows in `model_daily`. (The
+per-user metrics NDJSON also carries `token_usage` with prompt/output
+token sums, but only for the CLI and Copilot-app surfaces.)
+
 ## Billing model (since 2026-06-01)
 
 GitHub bills metered Copilot usage in **AI Credits: 1 credit = $0.01

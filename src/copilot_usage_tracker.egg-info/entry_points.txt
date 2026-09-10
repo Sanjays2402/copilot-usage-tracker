@@ -1,0 +1,2 @@
+[console_scripts]
+copilot-usage = copilot_usage_tracker.cli:main
