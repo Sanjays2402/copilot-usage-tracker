@@ -72,3 +72,32 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+  # Genuine end-to-end validation on a real Windows machine: clicks through
+  # the actual installer wizard, screenshots every page, verifies the
+  # installed files, launches the app and screenshots first-run setup.
+  # Screenshots are uploaded as the `windows-screenshots` artifact and then
+  # committed to docs/screenshots/ for the README. Runs after (and never
+  # blocks) the release.
+  windows-smoke:
+    needs: [windows-installer]
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: smoke
+      - name: Install wizard walkthrough + screenshots
+        shell: pwsh
+        working-directory: smoke
+        run: |
+          Copy-Item ../packaging/windows/capture-screenshots.ps1 .
+          ./capture-screenshots.ps1
+      - name: Upload Windows screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-screenshots
+          path: smoke/screenshots/*.png
