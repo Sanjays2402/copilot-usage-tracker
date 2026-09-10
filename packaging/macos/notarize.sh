@@ -10,8 +10,11 @@
 set -euo pipefail
 
 DMG="${1:?usage: notarize.sh <path-to-dmg>}"
-: "${APPLE_ID:?set APPLE_ID}"; : "${APPLE_TEAM_ID:?set APPLE_TEAM_ID}"
-: "${APPLE_APP_PASSWORD:?set APPLE_APP_PASSWORD (app-specific password)}"
+if [[ -z "${APPLE_ID:-}" ]]; then
+    echo "notarize: APPLE_ID not set -- skipping notarization (ad-hoc build)."
+    exit 0
+fi
+: "${APPLE_TEAM_ID:?set APPLE_TEAM_ID}"; : "${APPLE_APP_PASSWORD:?set APPLE_APP_PASSWORD (app-specific password)}"
 
 xcrun notarytool submit "$DMG" \
     --apple-id "$APPLE_ID" \

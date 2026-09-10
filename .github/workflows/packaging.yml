@@ -49,8 +49,7 @@ jobs:
         run: bash packaging/macos/build.sh
         env:
           APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
-      - name: Notarize
-        if: ${{ secrets.APPLE_ID != '' }}
+      - name: Notarize (skips itself when APPLE_ID is unset)
         run: bash packaging/macos/notarize.sh packaging/macos/dist/CopilotUsageTracker-*.dmg
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
