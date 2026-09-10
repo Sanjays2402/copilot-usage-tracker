@@ -31,6 +31,16 @@ Open-source usage & cost tracking for **GitHub Copilot at enterprise scale**:
 per-user AI-credit consumption, dollar costs, team attribution, budgets, and
 ROI insights -- built on GitHub's official usage metrics and billing APIs.
 
+## Install
+
+**Windows / macOS (recommended):** grab the installer from the
+[Releases page](https://github.com/Sanjays2402/copilot-usage-tracker/releases)
+— a setup wizard on Windows, a drag-to-Applications DMG on macOS. The app
+lives in the system tray / menu bar; click it to pop up the dashboard.
+See [packaging/](packaging/) for build, signing, and notarization details.
+
+**From source:**
+
 ## Why now
 
 On **June 1, 2026**, GitHub replaced flat per-seat Copilot billing with

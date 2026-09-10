@@ -1,0 +1,74 @@
+# Packaging: build signed installers on release tags.
+#
+# Pushing a tag like v0.2.0 builds:
+#   - Windows: CopilotUsageTracker-Setup-0.2.0.exe (Inno Setup)
+#   - macOS:   CopilotUsageTracker-0.2.0.dmg (drag-to-Applications)
+# and attaches both to the GitHub Release.
+#
+# Optional secrets for trusted distribution:
+#   APPLE_CODESIGN_IDENTITY - "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD - for notarization
+# Without them the macOS build is ad-hoc signed (Gatekeeper will warn).
+
+name: Packaging
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: ./packaging/windows/build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: packaging/windows/dist/CopilotUsageTracker-Setup-*.exe
+
+  macos-dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build DMG
+        run: bash packaging/macos/build.sh
+        env:
+          APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+      - name: Notarize
+        if: ${{ secrets.APPLE_ID != '' }}
+        run: bash packaging/macos/notarize.sh packaging/macos/dist/CopilotUsageTracker-*.dmg
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: packaging/macos/dist/CopilotUsageTracker-*.dmg
+
+  release:
+    needs: [windows-installer, macos-dmg]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

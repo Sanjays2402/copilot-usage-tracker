@@ -24,6 +24,13 @@
       persisted by the tool (excluded from repr, masked display, absent
       from audit log); `login` / `logout` / `auth` commands; offline
       commands no longer require a token
+- [x] Installers (`packaging/`): Windows Inno Setup wizard
+      (`build.ps1` → `CopilotUsageTracker-Setup-<ver>.exe`, per-user,
+      optional run-at-login) and macOS drag-to-Applications DMG
+      (`build.sh` → menu-bar-only `.app` via `LSUIElement`, codesign,
+      `notarize.sh`); app icons (`.ico`/`.icns`) rendered from the tray
+      glyph; `packaging.yml` workflow builds both on `v*` tags and
+      attaches them to the GitHub Release
 - [x] Streamlit dashboard (overview, teams, users, models & tokens, budgets)
 - [x] Desktop tray app (Windows hidden icons / macOS menu bar): popup
       dashboard on click, background data collection, PyInstaller packaging

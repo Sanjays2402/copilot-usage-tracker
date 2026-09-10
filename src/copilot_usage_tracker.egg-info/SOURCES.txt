@@ -27,6 +27,7 @@ tests/test_auth.py
 tests/test_billing_reports.py
 tests/test_budgets.py
 tests/test_insights.py
+tests/test_packaging.py
 tests/test_policy.py
 tests/test_privacy.py
 tests/test_store.py
