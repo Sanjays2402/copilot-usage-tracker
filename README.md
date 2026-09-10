@@ -6,13 +6,41 @@ ROI insights -- built on GitHub's official usage metrics and billing APIs.
 
 ## Install
 
-**Windows / macOS (recommended):** grab the installer from the
+**No terminal needed.** Grab the installer from the
 [Releases page](https://github.com/Sanjays2402/copilot-usage-tracker/releases)
-— a setup wizard on Windows, a drag-to-Applications DMG on macOS. The app
-lives in the system tray / menu bar; click it to pop up the dashboard.
-See [packaging/](packaging/) for build, signing, and notarization details.
+— a setup wizard on Windows, a drag-to-Applications DMG on macOS. Launch
+the app and it walks you through a one-time setup **inside the window**:
+enter your organization or enterprise, paste a GitHub token (stored only
+in your OS keyring, never in a file), and click **Collect latest**. That's
+it — no PowerShell, no commands.
 
-**From source:**
+The app lives in the system tray (Windows) or menu bar (macOS); click the
+icon to pop up the dashboard. See [packaging/](packaging/) for build,
+signing, and notarization details.
+
+**From source (developers):**
+
+## Screenshots
+
+First-run setup — everything happens in the app, no terminal required:
+
+![First-run setup: enter your org or enterprise and a GitHub token](docs/screenshots/setup.png)
+
+The dashboard, after collecting usage (sidebar has **Collect latest** and
+**Settings**, so day-to-day use never leaves the GUI):
+
+![Dashboard: cost, credits, active users, and daily credit burn](docs/screenshots/dashboard.png)
+
+<!--
+Windows installer wizard (capture on a real Windows machine, see
+docs/screenshots/CAPTURE.md):
+
+![Windows installer wizard](docs/screenshots/installer-welcome.png)
+![Windows installer options](docs/screenshots/installer-options.png)
+![Windows installer progress](docs/screenshots/installer-progress.png)
+![System tray icon and menu](docs/screenshots/tray-menu.png)
+![Dashboard popup from the tray](docs/screenshots/dashboard-popup.png)
+-->
 
 ## Why now
 
@@ -114,10 +142,14 @@ copilot-usage tray
 ```
 
 The tracker then lives in the taskbar's hidden icons (Windows) or the menu
-bar (macOS). Clicking the icon pops the dashboard up in a native window;
-closing the window hides it without quitting. The right-click menu offers
-**Collect latest data**, **Open in browser**, and **Quit**. See
-`tray/README.md` for run-at-login setup and PyInstaller packaging.
+bar (macOS). On first launch it pops the setup window automatically: pick
+your organization or enterprise, paste a GitHub token, and you're done —
+no terminal at any point. Clicking the icon pops the dashboard up in a
+native window; closing the window hides it without quitting. The
+right-click menu offers **Collect latest data**, **Open in browser**, and
+**Quit**. The dashboard sidebar mirrors the same controls (**Collect
+latest**, **Settings** to change scope). See `tray/README.md` for
+run-at-login setup and PyInstaller packaging.
 
 ## Enterprise & compliance
 

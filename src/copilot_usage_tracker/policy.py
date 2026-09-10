@@ -133,7 +133,18 @@ PRESET_DESCRIPTIONS = {
 
 
 def default_policy_path() -> Path:
-    return Path(os.environ.get("COPILOT_POLICY_FILE", "policy.yaml")).expanduser()
+    return Path(
+        os.environ.get("COPILOT_POLICY_FILE") or _app_default_policy()
+    ).expanduser()
+
+
+def _app_default_policy() -> str:
+    try:
+        from . import appconfig
+
+        return appconfig.default_policy_file()
+    except Exception:  # noqa: BLE001 - fall back to the legacy CWD default
+        return "policy.yaml"
 
 
 def _merge(base: dict, override: dict) -> dict:

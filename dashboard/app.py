@@ -21,6 +21,14 @@ except ImportError:  # dev fallback: run from repo root without install
 import pandas as pd
 import streamlit as st
 
+from copilot_usage_tracker import appconfig
+from copilot_usage_tracker.auth import (
+    TokenNotFoundError,
+    mask_token,
+    resolve_token,
+    save_to_keyring,
+    validate_token,
+)
 from copilot_usage_tracker.budgets import Budget, check_budgets
 from copilot_usage_tracker.insights import (
     daily_spend_series,
@@ -30,16 +38,95 @@ from copilot_usage_tracker.insights import (
     top_users_with_cost,
 )
 from copilot_usage_tracker.store import UsageStore
+from copilot_usage_tracker.sync import run_collection, summary_line, yesterday_str
 from copilot_usage_tracker.tokens import PriceBook
 
-st.set_page_config(
-    page_title="Copilot Usage & Cost", page_icon="💸", layout="wide"
-)
+
+def _setup_page() -> None:
+    """First-run onboarding: scope + token, no terminal required."""
+    st.title("Welcome to Copilot Usage Tracker")
+    st.write(
+        "Connect your GitHub enterprise or organization once. "
+        "Everything stays on this machine."
+    )
+    cfg = appconfig.load_app_config()
+
+    scope_kind = st.radio(
+        "What do you want to track?",
+        ["Organization", "Enterprise"],
+        index=0 if not cfg.enterprise else 1,
+        horizontal=True,
+    )
+    slug = st.text_input(
+        "Organization login" if scope_kind == "Organization" else "Enterprise slug",
+        value=cfg.org if scope_kind == "Organization" else cfg.enterprise,
+        placeholder="e.g. acme-corp",
+    ).strip()
+
+    try:
+        _token, source = resolve_token()
+        st.success(f"GitHub token found via {source} ({mask_token(_token)}).")
+        token: str | None = None
+    except TokenNotFoundError:
+        st.write(
+            "A GitHub token lets the app download usage reports. "
+            "[Create a fine-grained token](https://github.com/settings/tokens) "
+            "with read access to Copilot business metrics — it is stored "
+            "only in your OS keyring, never in a file."
+        )
+        token = st.text_input("GitHub token", type="password").strip() or None
+
+    remember = st.checkbox(
+        "Remember the token on this machine (OS keyring)", value=True
+    )
+    if st.button("Save & connect", type="primary"):
+        if not slug:
+            st.error("Enter your organization login or enterprise slug.")
+            st.stop()
+        api_base = cfg.api_base
+        if token:
+            try:
+                login, _scopes = validate_token(token, api_base)
+            except Exception as exc:  # noqa: BLE001 - show validation errors plainly
+                st.error(f"That token didn't work: {exc}")
+                st.stop()
+            st.success(f"Token works — signed in as @{login}.")
+            if remember:
+                try:
+                    save_to_keyring(token)
+                except Exception as exc:  # noqa: BLE001 - keyring may be unavailable
+                    st.warning(
+                        f"Could not use the OS keyring ({exc}); "
+                        "set GITHUB_TOKEN in your environment instead."
+                    )
+        cfg.enterprise = slug if scope_kind == "Enterprise" else ""
+        cfg.org = slug if scope_kind == "Organization" else ""
+        appconfig.save_app_config(cfg)
+        st.success("Connected. Fetching yesterday's usage…")
+        _collect_latest(cfg)
+        st.rerun()
+
+
+def _collect_latest(cfg) -> None:
+    day = yesterday_str()
+    with st.spinner(f"Collecting usage for {day}…"):
+        try:
+            summary = run_collection(day, with_teams=cfg.with_teams)
+        except (TokenNotFoundError, ValueError) as exc:
+            st.error(str(exc))
+            return
+    st.success(summary_line(summary))
+
+
+if not appconfig.is_configured():
+    _setup_page()
+    st.stop()
 
 # -- sidebar ---------------------------------------------------------------
 st.sidebar.title("Configuration")
 db_path = st.sidebar.text_input(
-    "Database", value=os.environ.get("COPILOT_DB", "copilot_usage.db")
+    "Database",
+    value=os.environ.get("COPILOT_DB") or appconfig.default_db_path(),
 )
 scope = st.sidebar.text_input("Scope (blank = all)", value="")
 month = st.sidebar.text_input("Month (YYYY-MM)", value="2026-09")
@@ -47,6 +134,37 @@ plan = st.sidebar.selectbox("Plan", ["business", "enterprise"])
 seats = st.sidebar.number_input("Granted seats", min_value=0, value=0, step=10)
 overage = st.sidebar.checkbox("Bill overage beyond pooled allowance", value=False)
 scope = scope or None
+
+st.sidebar.divider()
+st.sidebar.subheader("Data")
+_cfg = appconfig.load_app_config()
+if st.sidebar.button("🔄 Collect latest", use_container_width=True):
+    _collect_latest(_cfg)
+    st.rerun()
+with st.sidebar.expander("Settings"):
+    new_kind = st.radio(
+        "Scope type", ["Organization", "Enterprise"],
+        index=1 if _cfg.enterprise else 0, horizontal=True,
+    )
+    new_slug = st.text_input(
+        "Slug", value=_cfg.enterprise or _cfg.org,
+    ).strip()
+    new_teams = st.checkbox("Build per-team rollups", value=_cfg.with_teams)
+    if st.button("Save settings"):
+        if not new_slug:
+            st.error("Enter your organization login or enterprise slug.")
+        else:
+            _cfg.enterprise = new_slug if new_kind == "Enterprise" else ""
+            _cfg.org = new_slug if new_kind == "Organization" else ""
+            _cfg.with_teams = new_teams
+            appconfig.save_app_config(_cfg)
+            st.success("Saved.")
+            st.rerun()
+    try:
+        _tok, _src = resolve_token()
+        st.caption(f"Token: {_src} ({mask_token(_tok)})")
+    except TokenNotFoundError:
+        st.caption("Token: not found — run `copilot-usage login` or redo setup.")
 
 book = PriceBook.for_plan(plan, overage_allowed=overage)
 

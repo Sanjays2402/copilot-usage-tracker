@@ -16,7 +16,6 @@ import subprocess
 import sys
 import threading
 import webbrowser
-from pathlib import Path
 
 from .icon import make_icon
 from .util import dashboard_url, find_free_port, resource_path, wait_for_port, yesterday_str
@@ -30,15 +29,17 @@ def _log(message: str) -> None:
         print(f"[{APP_NAME}] {message}", file=sys.stderr, flush=True)
 
 
-def _default_db() -> str:
-    data_dir = Path.home() / ".copilot-usage-tracker"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return str(data_dir / "copilot_usage.db")
+def _configured() -> bool:
+    try:
+        from copilot_usage_tracker import appconfig
+
+        return appconfig.is_configured()
+    except Exception:  # noqa: BLE001 - fail open: dashboard shows setup anyway
+        return True
 
 
 class TrayApp:
     def __init__(self) -> None:
-        os.environ.setdefault("COPILOT_DB", _default_db())
         self.port = find_free_port()
         self.url = dashboard_url(self.port)
         self.server: subprocess.Popen | None = None
@@ -100,15 +101,15 @@ class TrayApp:
     # -- tray actions ----------------------------------------------------
     def collect_latest(self, *_) -> None:
         def _run() -> None:
-            day = yesterday_str()
             try:
-                subprocess.run(
-                    [sys.executable, "-m", "copilot_usage_tracker.cli",
-                     "collect", "--day", day, "--with-teams"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    timeout=900, check=False,
+                from copilot_usage_tracker import appconfig
+                from copilot_usage_tracker.sync import run_collection, summary_line
+
+                cfg = appconfig.load_app_config()
+                summary = run_collection(
+                    yesterday_str(), with_teams=cfg.with_teams
                 )
-                self._notify(f"Collection for {day} finished.")
+                self._notify(summary_line(summary))
             except Exception as exc:  # noqa: BLE001 - surface to the user
                 self._notify(f"Collection failed: {exc}")
 
@@ -151,6 +152,9 @@ class TrayApp:
         import webview
 
         self._ensure_window()
+        if not _configured():
+            # First run: pop the setup page so the user never needs a terminal.
+            self.show_dashboard()
         webview.start()
         # webview.start() returns after the window is destroyed (Quit)
         self.stop_server()

@@ -8,7 +8,6 @@ import shutil
 
 import click
 
-from .attribution import attribute_to_teams
 from .audit import AuditLogger
 from .auth import (
     TokenNotFoundError,
@@ -21,18 +20,18 @@ from .auth import (
 )
 from .billing_reports import BillingReportsClient
 from .budgets import Budget, check_budgets
-from .collector import BillingClient, CopilotReportsClient
+from .collector import BillingClient
 from .config import load_settings
 from .policy import (
     PRESET_DESCRIPTIONS,
-    apply_to_session,
     default_policy_path,
     load_policy,
     write_preset,
 )
-from .privacy import pseudonym, pseudonym_id
+from .privacy import pseudonym
 from .store import UsageStore
-from .tokens import PriceBook, credits_to_usd
+from .sync import run_collection, summary_line, wire_client
+from .tokens import PriceBook
 
 
 def _api_base(policy) -> str:
@@ -54,18 +53,6 @@ def _policy_and_settings(require_token: bool = True):
         )
     audit = AuditLogger(policy.audit.path, policy.audit.enabled)
     return policy, settings, scope, audit
-
-
-def _wire_client(client, policy):
-    apply_to_session(client.session, policy)
-    return client
-
-
-def _maybe_anonymize_user(user_id, login, policy):
-    if not policy.privacy.anonymize_users:
-        return user_id, login
-    salt = policy.ensure_salt()
-    return pseudonym_id(int(user_id or 0), salt), pseudonym(login or "", salt)
 
 
 @click.group()
@@ -115,54 +102,11 @@ def purge(days: int | None) -> None:
 @click.option("--with-teams", is_flag=True, help="Also fetch user-teams and build team rollups")
 def collect(day: str, with_teams: bool) -> None:
     """Pull a day's usage reports from GitHub and store local snapshots."""
-    policy, settings, scope, audit = _policy_and_settings()
-    client = _wire_client(CopilotReportsClient(settings, audit=audit), policy)
-    store = UsageStore(settings.db_path)
-    scope_type = "enterprise" if settings.enterprise else "org"
-    collect_per_user = policy.collection.collect_per_user
-    drop_raw = policy.privacy.drop_raw_json
-
-    users = client.users_day(day) if collect_per_user else []
-    for u in users:
-        user_id, login = _maybe_anonymize_user(
-            u.get("user_id"), u.get("user_login"), policy
-        )
-        store.upsert_user_day(
-            day,
-            scope,
-            user_id,
-            user_login=login,
-            ai_credits_used=u.get("ai_credits_used", 0) or 0,
-            interactions=u.get("user_initiated_interaction_count", 0) or 0,
-            loc_added=u.get("loc_added_sum", 0) or 0,
-            raw=None if drop_raw else u,
-        )
-
-    entity_rows = client.entity_day(day)
-    credits = sum(r.get("ai_credits_used", 0) or 0 for r in entity_rows)
-    active = sum(1 for u in users if (u.get("ai_credits_used", 0) or 0) > 0)
-    store.upsert_scope_day(
-        day, scope, scope_type, ai_credits_used=credits, active_users=active
-    )
-
-    team_count = 0
-    if with_teams and collect_per_user:
-        teams = attribute_to_teams(users, client.user_teams_day(day))
-        for t in teams:
-            store.upsert_team_day(day, scope, t["team_id"], **t)
-        team_count = len(teams)
-
-    purged = ""
-    if policy.privacy.retention_days > 0:
-        counts = store.purge_older_than(policy.privacy.retention_days)
-        purged = f"; purged {sum(counts.values())} rows beyond retention"
-
-    click.echo(
-        f"Stored {len(users)} user rows, {credits:,.0f} credits "
-        f"(${credits_to_usd(credits):,.2f}), {team_count} team rollups for {day}"
-        f"{purged}"
-    )
-    store.close()
+    try:
+        summary = run_collection(day, with_teams=with_teams, progress=click.echo)
+    except (TokenNotFoundError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(summary_line(summary))
 
 
 @main.command("export-tokens")
@@ -182,7 +126,7 @@ def export_tokens(year: int, month: int, report_type: str) -> None:
     GitHub's current billing-reports docs if the API rejects it.
     """
     policy, settings, scope, audit = _policy_and_settings()
-    client = _wire_client(BillingReportsClient(settings, audit=audit), policy)
+    client = wire_client(BillingReportsClient(settings, audit=audit), policy)
     store = UsageStore(settings.db_path)
 
     payload = {"type": report_type, "year": year, "month": month}
@@ -248,7 +192,7 @@ def report(month: str, scope: str | None, plan: str, seats: int, overage: bool) 
 def billing(year: int, month: int, user: str | None) -> None:
     """Dump exact AI-credit billing items from GitHub's billing API."""
     policy, settings, _scope, audit = _policy_and_settings()
-    client = _wire_client(BillingClient(settings, audit=audit), policy)
+    client = wire_client(BillingClient(settings, audit=audit), policy)
     items = client.ai_credit_usage(year, month, user=user)
     click.echo(json.dumps(items, indent=2)[:4000])
 
