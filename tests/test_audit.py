@@ -54,3 +54,28 @@ def test_audit_note_recorded(tmp_path):
     logger = AuditLogger(path)
     logger.log("GET", "https://api.github.com/x", note="ndjson download")
     assert json.loads(path.read_text().strip())["note"] == "ndjson download"
+
+
+def test_read_audit_log_newest_first(tmp_path):
+    from copilot_usage_tracker.audit import AuditLogger, read_audit_log
+
+    path = tmp_path / "audit.jsonl"
+    logger = AuditLogger(path)
+    logger.log("GET", "https://api.github.com/orgs/acme/copilot/metrics/reports?day=2026-09-01", 200)
+    logger.log("GET", "https://api.github.com/orgs/acme/copilot/billing?day=2026-09-01", 200)
+    records = read_audit_log(path)
+    assert len(records) == 2
+    assert records[0]["path"].endswith("/billing")
+    assert records[1]["path"].endswith("/reports")
+    # auth headers never logged
+    assert "authorization" not in str(records).lower()
+
+
+def test_read_audit_log_missing_and_limit(tmp_path):
+    from copilot_usage_tracker.audit import read_audit_log
+
+    assert read_audit_log(tmp_path / "nope.jsonl") == []
+    path = tmp_path / "audit.jsonl"
+    path.write_text('{"a": 1}\nnot json\n{"a": 2}\n')
+    records = read_audit_log(path, limit=1)
+    assert records == [{"a": 2}]

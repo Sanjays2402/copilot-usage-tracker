@@ -60,3 +60,29 @@ class AuditMixin:
                note: str = "") -> None:
         if self.audit is not None:
             self.audit.log(method, url, status, note)
+
+
+def read_audit_log(path: str | Path | None, limit: int = 200) -> list[dict]:
+    """Read the newest `limit` audit records (newest first).
+
+    Corrupt lines are skipped; a missing file yields an empty list. Safe
+    to call from the dashboard -- never raises for I/O problems.
+    """
+    if not path:
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return []
+    records = []
+    for line in lines[-limit:]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    records.reverse()
+    return records

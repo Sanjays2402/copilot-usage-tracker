@@ -57,6 +57,10 @@ class AppConfig:
     org: str = ""
     api_base: str = "https://api.github.com"
     with_teams: bool = True
+    # v0.2.0: automation + alerting, all GUI-editable.
+    webhook_url: str = ""          # Slack/Teams incoming webhook for budget alerts
+    auto_collect_hours: float = 6.0  # tray background collection interval; 0 = off
+    budget_limit_usd: float = 1000.0
 
     def scope(self) -> str:
         return self.enterprise or self.org
@@ -69,7 +73,8 @@ def load_app_config() -> AppConfig:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     cfg = AppConfig()
-    for key in ("enterprise", "org", "api_base", "with_teams"):
+    for key in ("enterprise", "org", "api_base", "with_teams",
+                "webhook_url", "auto_collect_hours", "budget_limit_usd"):
         if key in data and data[key] is not None:
             setattr(cfg, key, data[key])
     return cfg

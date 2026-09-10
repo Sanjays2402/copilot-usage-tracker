@@ -69,20 +69,28 @@ FinOps layer GitHub doesn't ship: track it, attribute it, budget it.
 - **Team attribution** -- implements GitHub's documented user-teams join so
   every credit can be charged back (or shown back) to a team. Honors the
   5-seat reporting threshold and multi-team double-counting rules.
-- **Budgets & alerts** -- per-scope (enterprise/org/team) monthly budgets
-  with warn/breach thresholds; wire the alerts to Slack, email, or webhooks.
-- **Seat optimization** -- find granted seats with no activity and reclaim
-  them before the next billing cycle.
+- **Budgets & chat alerts** -- monthly budgets with warn/breach thresholds;
+  paste a Slack/Teams incoming-webhook URL in Settings and alerts are
+  delivered to chat automatically after every collection (test button
+  included).
+- **Seat optimization** -- the Seats tab lists dormant seats (no usage in
+  30 days) with reclaimable dollars per month, downloadable as CSV.
+- **Engagement analytics** -- Copilot interactions, lines of code added,
+  engaged-user rate, and per-day trends on the Engagement tab.
+- **Month-end forecasting** -- the Overview tab projects month-end credits
+  and cost from the daily run rate, so the allowance never surprises
+  finance.
+- **Background auto-collection** -- the tray app refreshes data on a
+  schedule (every 6 hours by default, adjustable in Settings); the
+  dashboard is always fresh with zero clicks.
+- **Audit log viewer** -- every GitHub API call the app makes, inspectable
+  in the dashboard for compliance reviews (auth headers never logged).
 - **Model analytics** -- per-model and per-feature breakdowns show which
   models and surfaces (chat, agent mode, code review, CLI) burn the credit
   pool fastest.
-- **Repo-level insights** -- per-repository coding-agent and code-review
-  activity for AI-readiness reporting.
-- **Forecasting** -- trend current burn against the post-September allowance
-  so the smaller pool never surprises finance.
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next (dashboard, warehouse
-sinks, anomaly detection, ROI module).
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next (warehouse sinks,
+anomaly detection, ROI module).
 
 ## Quickstart
 

@@ -100,6 +100,16 @@ def main() -> None:
             billed_usd=round(scope_credits * 0.01, 2),
             active_users=sum(len(u) for u in team_users.values()),
         )
+    # A dormant seat: grace used Copilot back in August, nothing since.
+    store.upsert_user_day(
+        "2026-08-01",
+        SCOPE,
+        107,
+        user_login="grace",
+        ai_credits_used=120.0,
+        interactions=200,
+        loc_added=900,
+    )
     store.close()
     print(f"seeded demo db: {db_path}")
 

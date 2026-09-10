@@ -249,6 +249,73 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def daily_engagement(
+        self, year_month: str, scope: str | None = None
+    ) -> list[dict]:
+        """Per-day interactions, lines added, engaged and active users."""
+        q, args = self._scoped("user_daily", year_month, scope)
+        rows = self.conn.execute(
+            "SELECT day, COALESCE(SUM(interactions),0) AS interactions, "
+            "COALESCE(SUM(loc_added),0) AS loc_added, "
+            "COUNT(DISTINCT CASE WHEN interactions > 0 THEN user_id END) "
+            "AS engaged_users, "
+            f"COUNT(DISTINCT user_id) AS active_users {q} "
+            "GROUP BY day ORDER BY day",
+            args,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def monthly_engaged_users(
+        self, year_month: str, scope: str | None = None
+    ) -> int:
+        """Distinct users with at least one Copilot interaction in the month."""
+        q, args = self._scoped("user_daily", year_month, scope)
+        return self.conn.execute(
+            "SELECT COUNT(DISTINCT CASE WHEN interactions > 0 THEN user_id END) "
+            f"AS n {q}",
+            args,
+        ).fetchone()["n"]
+
+    def engagement_totals(
+        self, year_month: str, scope: str | None = None
+    ) -> dict:
+        q, args = self._scoped("user_daily", year_month, scope)
+        r = self.conn.execute(
+            "SELECT COALESCE(SUM(interactions),0) AS interactions, "
+            f"COALESCE(SUM(loc_added),0) AS loc_added {q}",
+            args,
+        ).fetchone()
+        return {"interactions": r["interactions"], "loc_added": r["loc_added"]}
+
+    def dormant_users(
+        self, days: int = 30, scope: str | None = None,
+        today: str | None = None,
+    ) -> list[dict]:
+        """Users with no credit usage in the trailing `days` days.
+
+        Returns ``user_login`` plus their last active day (``None`` when a
+        user never recorded usage). Powers the seat-reclamation report.
+        """
+        if today is None:
+            today = datetime.now(timezone.utc).date().isoformat()
+        cutoff = (
+            datetime.fromisoformat(today).date() - timedelta(days=days)
+        ).isoformat()
+        q = "FROM user_daily WHERE 1 = 1"
+        args: list = []
+        if scope:
+            q += " AND scope = ?"
+            args.append(scope)
+        rows = self.conn.execute(
+            "SELECT user_login, "
+            "MAX(CASE WHEN ai_credits_used > 0 THEN day END) AS last_active_day "
+            f"{q} GROUP BY user_login "
+            "HAVING last_active_day IS NULL OR last_active_day < ? "
+            "ORDER BY last_active_day",
+            args + [cutoff],
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def purge_older_than(self, days: int) -> dict:
         """Delete rows older than `days` (cutoff in UTC); returns per-table counts."""
         cutoff = (

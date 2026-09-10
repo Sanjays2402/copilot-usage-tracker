@@ -65,3 +65,23 @@ def test_defaults_come_from_app_config(isolated_home):
 def test_scope_prefers_enterprise(isolated_home):
     save_app_config(AppConfig(enterprise="acme-ent", org="acme-org"))
     assert effective_scope() == "acme-ent"
+
+
+def test_new_fields_roundtrip(isolated_home):
+    save_app_config(AppConfig(
+        org="acme",
+        webhook_url="https://hooks.example/x",
+        auto_collect_hours=12.0,
+        budget_limit_usd=2500.0,
+    ))
+    cfg = load_app_config()
+    assert cfg.webhook_url == "https://hooks.example/x"
+    assert cfg.auto_collect_hours == 12.0
+    assert cfg.budget_limit_usd == 2500.0
+
+
+def test_new_fields_defaults(isolated_home):
+    cfg = load_app_config()
+    assert cfg.webhook_url == ""
+    assert cfg.auto_collect_hours == 6.0
+    assert cfg.budget_limit_usd == 1000.0

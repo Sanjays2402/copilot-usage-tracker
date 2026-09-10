@@ -88,3 +88,103 @@ def model_breakdown(store: UsageStore, month: str, scope: str | None) -> list[di
         }
         for r in store.model_breakdown(month, scope)
     ]
+
+
+def forecast_month_end(
+    store: UsageStore, month: str, scope: str | None,
+    book: PriceBook, seats: int,
+) -> dict:
+    """Project month-end credits and cost from the daily run rate.
+
+    Uses days that actually have collected data (not the calendar day),
+    so a mid-month view and a partial backfill both extrapolate sanely.
+    """
+    import calendar
+
+    year, mon = (int(p) for p in month.split("-", 1))
+    days_in_month = calendar.monthrange(year, mon)[1]
+    daily = store.daily_series(month, scope)
+    days_elapsed = len(daily)
+    credits_so_far = sum(r["ai_credits_used"] for r in daily)
+    run_rate = credits_so_far / days_elapsed if days_elapsed else 0.0
+    projected_credits = run_rate * days_in_month
+    cost = book.monthly_cost(seats, projected_credits)
+    return {
+        "month": month,
+        "scope": scope,
+        "days_elapsed": days_elapsed,
+        "days_in_month": days_in_month,
+        "daily_run_rate": round(run_rate, 2),
+        "credits_so_far": round(credits_so_far, 2),
+        "projected_credits": round(projected_credits, 2),
+        "projected_total_usd": cost["total_cost_usd"],
+        "projected_overage_usd": cost["overage_cost_usd"],
+        "projected_utilization": cost["utilization"],
+    }
+
+
+def engagement_summary(
+    store: UsageStore, month: str, scope: str | None
+) -> dict:
+    """How much value users get: interactions, lines added, engagement rate."""
+    totals = store.engagement_totals(month, scope)
+    active = store.monthly_active_users(month, scope)
+    engaged = store.monthly_engaged_users(month, scope)
+    return {
+        "month": month,
+        "scope": scope,
+        "interactions": totals["interactions"],
+        "loc_added": totals["loc_added"],
+        "active_users": active,
+        "engaged_users": engaged,
+        "engagement_rate": (engaged / active) if active else 0.0,
+        "interactions_per_engaged_user": (
+            round(totals["interactions"] / engaged, 1) if engaged else 0.0
+        ),
+        "loc_per_engaged_user": (
+            round(totals["loc_added"] / engaged, 1) if engaged else 0.0
+        ),
+    }
+
+
+def engagement_daily_series(
+    store: UsageStore, month: str, scope: str | None
+) -> list[dict]:
+    """Per-day engagement rows for charts."""
+    return [
+        {
+            "day": r["day"],
+            "interactions": r["interactions"],
+            "loc_added": r["loc_added"],
+            "engaged_users": r["engaged_users"],
+            "active_users": r["active_users"],
+        }
+        for r in store.daily_engagement(month, scope)
+    ]
+
+
+def dormant_seats(
+    store: UsageStore, days: int, scope: str | None,
+    book: PriceBook, today: str | None = None,
+) -> dict:
+    """Seats that show no Copilot usage in the trailing `days` days.
+
+    Each dormant seat is a candidate for license reclamation; savings use
+    the plan's per-seat price.
+    """
+    users = store.dormant_users(days=days, scope=scope, today=today)
+    savings = round(len(users) * book.seat_price_monthly, 2)
+    return {
+        "days": days,
+        "scope": scope,
+        "dormant_count": len(users),
+        "potential_monthly_savings_usd": savings,
+        "seat_price_usd": book.seat_price_monthly,
+        "users": [
+            {
+                "user": r["user_login"],
+                "last_active_day": r["last_active_day"] or "never",
+            }
+            for r in users
+        ],
+    }

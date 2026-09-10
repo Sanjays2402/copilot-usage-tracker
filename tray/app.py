@@ -116,6 +116,41 @@ class TrayApp:
         threading.Thread(target=_run, daemon=True, name="collect").start()
         self._notify("Collecting latest usage data…")
 
+    def _auto_collect_loop(self) -> None:
+        """Background collection on the GUI-configured interval.
+
+        Keeps the dashboard fresh without clicks: every
+        ``auto_collect_hours`` the tray app pulls yesterday's reports.
+        ``0`` (or unconfigured scope) disables the loop. Failures notify
+        once per cycle and never kill the thread.
+        """
+        import time
+
+        from copilot_usage_tracker import appconfig
+        from copilot_usage_tracker.sync import run_collection, summary_line
+
+        while True:
+            try:
+                cfg = appconfig.load_app_config()
+                hours = float(cfg.auto_collect_hours or 0)
+            except Exception as exc:  # noqa: BLE001 - config unreadable
+                _log(f"auto-collect config unreadable: {exc}")
+                hours = 0
+            if hours <= 0 or not appconfig.is_configured(cfg):
+                _log("auto-collect idle (disabled or not configured)")
+                time.sleep(3600)
+                continue
+            _log(f"auto-collect sleeping {hours}h")
+            time.sleep(hours * 3600)
+            try:
+                cfg = appconfig.load_app_config()
+                summary = run_collection(
+                    yesterday_str(), with_teams=cfg.with_teams
+                )
+                self._notify("Auto-collect: " + summary_line(summary))
+            except Exception as exc:  # noqa: BLE001 - keep the loop alive
+                _log(f"auto-collect failed: {exc}")
+
     def _notify(self, message: str) -> None:
         try:
             if self._icon is not None:
@@ -148,6 +183,9 @@ class TrayApp:
         )
         self._icon = pystray.Icon(APP_NAME, make_icon(), APP_NAME, menu)
         threading.Thread(target=self._icon.run, daemon=True, name="tray-icon").start()
+        threading.Thread(
+            target=self._auto_collect_loop, daemon=True, name="auto-collect"
+        ).start()
 
         import webview
 

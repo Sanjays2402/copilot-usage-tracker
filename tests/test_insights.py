@@ -4,6 +4,10 @@ import pytest
 
 from copilot_usage_tracker.insights import (
     daily_spend_series,
+    dormant_seats,
+    engagement_daily_series,
+    engagement_summary,
+    forecast_month_end,
     model_breakdown,
     monthly_kpis,
     team_leaderboard,
@@ -88,3 +92,60 @@ def test_model_breakdown(store):
     assert models[0]["output_tokens"] == 300_000
     assert models[0]["cache_read_tokens"] == 50_000
     assert models[0]["net_usd"] == 8.50
+
+
+def test_forecast_month_end(store):
+    book = PriceBook.for_plan("business")
+    fc = forecast_month_end(store, "2026-09", "acme", book, seats=10)
+    # 2 days of data: 1000 + 500 = 1500 -> run rate 750/day over 30 days
+    assert fc["days_elapsed"] == 2
+    assert fc["days_in_month"] == 30
+    assert fc["daily_run_rate"] == 750.0
+    assert fc["projected_credits"] == 22500.0
+    # 10 seats * $19 = $190 seat cost; 22500 - 19000 allowance = 3500 overage
+    # overage not allowed by default -> cost is seats only
+    assert fc["projected_total_usd"] == 190.00
+
+
+def test_forecast_no_data(store):
+    book = PriceBook.for_plan("business")
+    fc = forecast_month_end(store, "2026-10", "acme", book, seats=10)
+    assert fc["days_elapsed"] == 0
+    assert fc["projected_credits"] == 0.0
+    assert fc["projected_total_usd"] == 190.00
+
+
+def test_engagement_summary(store):
+    eng = engagement_summary(store, "2026-09", "acme")
+    assert eng["interactions"] == 15
+    assert eng["loc_added"] == 60
+    assert eng["active_users"] == 2
+    assert eng["engaged_users"] == 2
+    assert eng["engagement_rate"] == 1.0
+    assert eng["interactions_per_engaged_user"] == 7.5
+    assert eng["loc_per_engaged_user"] == 30.0
+
+
+def test_engagement_daily_series(store):
+    series = engagement_daily_series(store, "2026-09", "acme")
+    assert len(series) == 1
+    assert series[0]["day"] == "2026-09-01"
+    assert series[0]["interactions"] == 15
+    assert series[0]["engaged_users"] == 2
+
+
+def test_dormant_seats(store):
+    # Everyone in the fixture was active 2026-09-01; with today 2026-09-02
+    # and a 30-day window nobody is dormant.
+    book = PriceBook.for_plan("business")
+    report = dormant_seats(store, 30, "acme", book, today="2026-09-02")
+    assert report["dormant_count"] == 0
+    assert report["potential_monthly_savings_usd"] == 0.0
+    # With a 1-day window both users are dormant: last active 09-01,
+    # cutoff is 09-01 -> strictly older required.
+    report = dormant_seats(store, 0, "acme", book, today="2026-09-02")
+    assert report["dormant_count"] == 2
+    assert report["potential_monthly_savings_usd"] == 38.0
+    assert report["seat_price_usd"] == 19.0
+    logins = {u["user"] for u in report["users"]}
+    assert logins == {"alice", "bob"}
