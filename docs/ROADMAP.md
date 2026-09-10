@@ -14,6 +14,11 @@
       allowances, overage math)
 - [x] Team attribution via the documented user-teams join
 - [x] Budget checks with warn/breach alerts
+- [x] Enterprise policy layer (`policy.py`): scope allowlists, per-user
+      opt-out (aggregate mode), salted user pseudonymization, retention
+      with auto-purge, corporate proxy/CA, GHES base URL, JSONL audit log
+      of every API call; `init-policy --preset strict|standard|aggregate`,
+      `purge`; `docs/ENTERPRISE.md` compliance guide
 - [x] Streamlit dashboard (overview, teams, users, models & tokens, budgets)
 - [x] Desktop tray app (Windows hidden icons / macOS menu bar): popup
       dashboard on click, background data collection, PyInstaller packaging

@@ -16,7 +16,11 @@ class Settings:
     db_path: str = field(
         default_factory=lambda: os.environ.get("COPILOT_DB", "copilot_usage.db")
     )
-    api_base: str = "https://api.github.com"
+    api_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "COPILOT_API_BASE", "https://api.github.com"
+        )
+    )
 
     def validate(self) -> None:
         if not self.github_token:
@@ -27,7 +31,9 @@ class Settings:
             )
 
 
-def load_settings() -> Settings:
+def load_settings(policy=None) -> Settings:
     settings = Settings()
+    if policy is not None and policy.network.api_base:
+        settings.api_base = policy.network.api_base
     settings.validate()
     return settings

@@ -24,19 +24,21 @@ from typing import Any
 
 import requests
 
+from .audit import AuditLogger, AuditMixin
 from .config import Settings
 
 TOKEN_COLUMNS = ("input", "output", "cache_read", "cache_write")
 AMOUNT_COLUMNS = ("gross_amount", "discount_amount", "net_amount")
 
 
-class BillingReportsClient:
+class BillingReportsClient(AuditMixin):
     """Export-API client (enterprise scope)."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, audit: AuditLogger | None = None):
         if not settings.enterprise:
             raise ValueError("Billing reports export requires COPILOT_ENTERPRISE")
         self.settings = settings
+        self.audit = audit
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -53,12 +55,16 @@ class BillingReportsClient:
     def create_report(self, payload: dict) -> str:
         """Request a report; returns the report id."""
         resp = self.session.post(self._base, json=payload, timeout=60)
+        self._audit("POST", self._base, resp.status_code,
+                    note=f"billing report request: {payload.get('type')}")
         resp.raise_for_status()
         data = resp.json()
         return data.get("id") or data.get("report_id")
 
     def report_status(self, report_id: str) -> dict:
-        resp = self.session.get(f"{self._base}/{report_id}", timeout=60)
+        url = f"{self._base}/{report_id}"
+        resp = self.session.get(url, timeout=60)
+        self._audit("GET", url, resp.status_code, note="billing report poll")
         resp.raise_for_status()
         return resp.json()
 
@@ -81,6 +87,7 @@ class BillingReportsClient:
     def download_csv(self, url: str) -> list[dict]:
         """Download and parse the report CSV into normalized row dicts."""
         resp = self.session.get(url, timeout=300)
+        self._audit("GET", url, resp.status_code, note="billing report csv download")
         resp.raise_for_status()
         return parse_usage_csv(resp.text)
 

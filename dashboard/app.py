@@ -66,6 +66,14 @@ models = model_breakdown(store, month, scope)
 st.title("GitHub Copilot — Usage & Cost")
 st.caption(f"Scope: {scope or 'all'} · {month} · {plan} plan · {seats} seats")
 
+policy_path = os.environ.get("COPILOT_POLICY_FILE", "policy.yaml")
+if os.path.exists(policy_path):
+    st.sidebar.caption("🔒 Enterprise policy active (policy.yaml)")
+st.sidebar.caption(
+    "All data stays on this machine — the only network calls are to your "
+    "GitHub API endpoint. No third-party telemetry."
+)
+
 tab_overview, tab_teams, tab_users, tab_models, tab_budgets = st.tabs(
     ["Overview", "Teams", "Users", "Models & Tokens", "Budgets"]
 )

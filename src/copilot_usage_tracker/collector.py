@@ -18,6 +18,7 @@ from typing import Any
 
 import requests
 
+from .audit import AuditLogger, AuditMixin
 from .config import Settings
 
 # Report names per scope, from the GitHub docs "REST API endpoints for
@@ -42,11 +43,12 @@ REPORTS = {
 }
 
 
-class CopilotReportsClient:
+class CopilotReportsClient(AuditMixin):
     """Client for the report-based Copilot usage metrics API."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, audit: AuditLogger | None = None):
         self.settings = settings
+        self.audit = audit
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -72,6 +74,7 @@ class CopilotReportsClient:
         url = f"{self.settings.api_base}{path}"
         for _ in range(3):
             resp = self.session.get(url, params=params, timeout=60)
+            self._audit("GET", resp.url, resp.status_code)
             if resp.status_code == 403 and "rate limit" in resp.text.lower():
                 reset = int(resp.headers.get("X-RateLimit-Reset", time.time() + 60))
                 time.sleep(max(reset - time.time(), 0) + 1)
@@ -99,6 +102,7 @@ class CopilotReportsClient:
         """Download one NDJSON report file; one dict per line."""
         rows = []
         with self.session.get(url, timeout=120, stream=True) as resp:
+            self._audit("GET", url, resp.status_code, note="ndjson download")
             resp.raise_for_status()
             for line in resp.iter_lines(decode_unicode=True):
                 line = line.strip()
@@ -130,17 +134,18 @@ class CopilotReportsClient:
         return self.fetch_report(REPORTS[self._scope]["repos_day"], day)
 
 
-class BillingClient:
+class BillingClient(AuditMixin):
     """Client for GitHub's AI-credit billing endpoint (enterprise scope).
 
     Returns exact billing figures: per-user, per-model ``usageItems`` with
     gross / allowance-covered (discount) / net-billed quantities and amounts.
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, audit: AuditLogger | None = None):
         if not settings.enterprise:
             raise ValueError("AI-credit billing endpoint requires COPILOT_ENTERPRISE")
         self.settings = settings
+        self.audit = audit
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -171,6 +176,7 @@ class BillingClient:
             f"/settings/billing/ai_credit/usage"
         )
         resp = self.session.get(url, params=params, timeout=60)
+        self._audit("GET", resp.url, resp.status_code, note="ai-credit billing")
         resp.raise_for_status()
         payload = resp.json()
         if isinstance(payload, dict) and "usageItems" in payload:

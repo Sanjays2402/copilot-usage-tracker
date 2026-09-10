@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCHEMA = """
@@ -247,6 +248,20 @@ class UsageStore:
             args,
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def purge_older_than(self, days: int) -> dict:
+        """Delete rows older than `days` (cutoff in UTC); returns per-table counts."""
+        cutoff = (
+            datetime.now(timezone.utc).date() - timedelta(days=days)
+        ).isoformat()
+        counts = {}
+        for table in ("user_daily", "scope_daily", "team_daily", "model_daily"):
+            cur = self.conn.execute(
+                f"DELETE FROM {table} WHERE day < ?", (cutoff,)
+            )
+            counts[table] = cur.rowcount
+        self.conn.commit()
+        return counts
 
     def close(self) -> None:
         self.conn.close()

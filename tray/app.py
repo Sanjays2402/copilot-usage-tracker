@@ -47,6 +47,9 @@ class TrayApp:
 
     # -- local dashboard server ----------------------------------------
     def start_server(self) -> None:
+        env = dict(os.environ)
+        # Defense in depth: no Streamlit telemetry, even if flags change.
+        env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
         cmd = [
             sys.executable, "-m", "streamlit", "run",
             resource_path("dashboard/app.py"),
@@ -55,7 +58,7 @@ class TrayApp:
             "--browser.gatherUsageStats", "false",
         ]
         self.server = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
         )
         wait_for_port(self.port, timeout=90)
 

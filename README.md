@@ -106,6 +106,21 @@ closing the window hides it without quitting. The right-click menu offers
 **Collect latest data**, **Open in browser**, and **Quit**. See
 `tray/README.md` for run-at-login setup and PyInstaller packaging.
 
+## Enterprise & compliance
+
+Built so a security review can say yes: read-only against GitHub,
+local-first (SQLite on your machine, no third-party telemetry), least-
+privilege tokens, an `audit.jsonl` trail of every API call, and a
+`policy.yaml` that adapts the tool to company rules — scope allowlists,
+aggregate-only mode (no per-user rows), user pseudonymization, retention
+with auto-purge, corporate proxy/CA support, and GitHub Enterprise Server.
+
+```bash
+copilot-usage init-policy --preset strict   # standard | strict | aggregate
+```
+
+Full guide: [`docs/ENTERPRISE.md`](docs/ENTERPRISE.md).
+
 ## How it works
 
 ```
