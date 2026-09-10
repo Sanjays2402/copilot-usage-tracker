@@ -5,6 +5,12 @@ click>=8.1
 streamlit>=1.32
 pandas>=2.0
 
+[desktop]
+pystray>=0.19
+pywebview>=4.0
+Pillow>=10
+
 [dev]
 pytest>=8.0
 ruff>=0.4
+Pillow>=10

@@ -13,9 +13,14 @@ Requires-Dist: click>=8.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: ruff>=0.4; extra == "dev"
+Requires-Dist: Pillow>=10; extra == "dev"
 Provides-Extra: dashboard
 Requires-Dist: streamlit>=1.32; extra == "dashboard"
 Requires-Dist: pandas>=2.0; extra == "dashboard"
+Provides-Extra: desktop
+Requires-Dist: pystray>=0.19; extra == "desktop"
+Requires-Dist: pywebview>=4.0; extra == "desktop"
+Requires-Dist: Pillow>=10; extra == "desktop"
 Dynamic: license-file
 
 # copilot-usage-tracker
@@ -110,6 +115,21 @@ leaderboard), **Users** (top consumers with dollar costs), **Models &
 Tokens** (per-model input/output/cache tokens and spend), and **Budgets**
 (monthly budget vs. actual with warn/breach alerts). Configure the database
 path, scope, month, plan, seats, and overage policy in the sidebar.
+
+## Desktop app (system tray)
+
+Prefer a native app over a browser tab? Install the desktop extra and run:
+
+```bash
+pip install -e ".[desktop]"
+copilot-usage tray
+```
+
+The tracker then lives in the taskbar's hidden icons (Windows) or the menu
+bar (macOS). Clicking the icon pops the dashboard up in a native window;
+closing the window hides it without quitting. The right-click menu offers
+**Collect latest data**, **Open in browser**, and **Quit**. See
+`tray/README.md` for run-at-login setup and PyInstaller packaging.
 
 ## How it works
 

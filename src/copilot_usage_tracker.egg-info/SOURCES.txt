@@ -22,3 +22,4 @@ tests/test_billing_reports.py
 tests/test_budgets.py
 tests/test_insights.py
 tests/test_tokens.py
+tests/test_tray.py

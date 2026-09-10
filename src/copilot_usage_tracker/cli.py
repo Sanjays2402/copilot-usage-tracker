@@ -173,5 +173,18 @@ def estimate(credits: float, seats: int, plan: str, overage: bool) -> None:
     click.echo(json.dumps(book.monthly_cost(seats, credits), indent=2))
 
 
+@main.command()
+def tray() -> None:
+    """Launch the desktop system-tray app (popup dashboard on click)."""
+    try:
+        from tray.app import main as tray_main
+    except ImportError as exc:
+        raise click.ClickException(
+            f"Desktop dependencies missing ({exc}). "
+            'Install them with: pip install -e ".[desktop]"'
+        ) from exc
+    tray_main()
+
+
 if __name__ == "__main__":
     main()

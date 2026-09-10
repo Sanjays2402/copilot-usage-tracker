@@ -15,8 +15,10 @@
 - [x] Team attribution via the documented user-teams join
 - [x] Budget checks with warn/breach alerts
 - [x] Streamlit dashboard (overview, teams, users, models & tokens, budgets)
+- [x] Desktop tray app (Windows hidden icons / macOS menu bar): popup
+      dashboard on click, background data collection, PyInstaller packaging
 - [x] CLI: `collect`, `export-tokens`, `report`, `billing`, `budget-check`,
-      `estimate`
+      `estimate`, `tray`
 
 ## v0.2 -- FinOps depth
 - [ ] Slack/webhook alert delivery for budget breaches

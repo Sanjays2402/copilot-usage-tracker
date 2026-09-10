@@ -91,6 +91,21 @@ Tokens** (per-model input/output/cache tokens and spend), and **Budgets**
 (monthly budget vs. actual with warn/breach alerts). Configure the database
 path, scope, month, plan, seats, and overage policy in the sidebar.
 
+## Desktop app (system tray)
+
+Prefer a native app over a browser tab? Install the desktop extra and run:
+
+```bash
+pip install -e ".[desktop]"
+copilot-usage tray
+```
+
+The tracker then lives in the taskbar's hidden icons (Windows) or the menu
+bar (macOS). Clicking the icon pops the dashboard up in a native window;
+closing the window hides it without quitting. The right-click menu offers
+**Collect latest data**, **Open in browser**, and **Quit**. See
+`tray/README.md` for run-at-login setup and PyInstaller packaging.
+
 ## How it works
 
 ```
