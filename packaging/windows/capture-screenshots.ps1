@@ -79,8 +79,15 @@ if (Focus-Window $wiz) { Start-Sleep -Seconds 2 }
 Save-Shot "installer-wizard.png"
 
 # Close the wizard without installing; the real install happens in phase 2.
+# Kill by window title (not PID): Inno spawns the wizard UI such that the
+# original process handle may already be gone, leaving the window behind.
 Stop-Process -Id $wiz.Id -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+Get-Process | Where-Object { $_.MainWindowTitle -like "Setup - Copilot Usage Tracker*" } |
+    Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
+$leftover = Get-Process | Where-Object { $_.MainWindowTitle -like "Setup - Copilot Usage Tracker*" }
+if ($leftover) { throw "installer wizard did not close; it would obscure later screenshots" }
 
 # ---- Phase 2: genuine silent install (progress dialog is real) -------------
 Write-Host "phase 2: silent install"
@@ -105,9 +112,21 @@ Write-Host "installed OK: $appExe"
 Write-Host "phase 3: launch installed app"
 $app = Start-Process $appExe -PassThru
 Start-Sleep -Seconds 45
+# Focus the app window so the screenshot captures it (not the desktop).
+Focus-Window $app | Out-Null
+Start-Sleep -Seconds 2
 Save-Shot "app-first-run.png"
 Start-Sleep -Seconds 15
+Focus-Window $app | Out-Null
+Start-Sleep -Seconds 2
 Save-Shot "app-first-run-2.png"
+# A PyInstaller "Unhandled exception in script" dialog keeps the process
+# alive -- the screenshots above are the verification (reviewed manually),
+# but fail loudly if the app died outright.
+$app.Refresh()
+if ($app.HasExited -and $app.ExitCode -ne 0) {
+    throw "app exited with code $($app.ExitCode) shortly after launch"
+}
 Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
 Get-Process -Name "copilot-usage-tray" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Write-Host "smoke test done"
