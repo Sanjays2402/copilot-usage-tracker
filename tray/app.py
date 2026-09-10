@@ -15,7 +15,9 @@ import os
 import subprocess
 import sys
 import threading
+import traceback
 import webbrowser
+from datetime import datetime, timezone
 
 if __package__ in (None, ""):
     # Frozen entry point (PyInstaller runs this file as top-level module
@@ -51,6 +53,27 @@ def _log(message: str) -> None:
         print(f"[{APP_NAME}] {message}", file=sys.stderr, flush=True)
 
 
+def _log_file_path() -> str | None:
+    """Where the tray app writes its startup log (for support & smoke tests)."""
+    try:
+        from copilot_usage_tracker import appconfig
+
+        return os.path.join(appconfig.data_dir(), "tray.log")
+    except Exception:  # noqa: BLE001 - logging must never crash the tray
+        return None
+
+
+def _flog(message: str) -> None:
+    """Append a timestamped milestone to the tray log file (best effort)."""
+    path = _log_file_path()
+    if path is None:
+        return
+    with contextlib.suppress(Exception):
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(f"{ts} {message}\n")
+
+
 def _configured() -> bool:
     try:
         from copilot_usage_tracker import appconfig
@@ -69,16 +92,11 @@ class TrayApp:
         self._icon = None
 
     # -- local dashboard server ----------------------------------------
-    def start_server(self) -> None:
-        env = dict(os.environ)
-        # Defense in depth: no Streamlit telemetry, even if flags change.
-        env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-        cmd = [
-            sys.executable,
-            "-m",
-            "streamlit",
+    def _server_command(self) -> list[str]:
+        script = resource_path(os.path.join("dashboard", "app.py"))
+        args = [
             "run",
-            resource_path("dashboard/app.py"),
+            script,
             "--server.port",
             str(self.port),
             "--server.headless",
@@ -86,10 +104,27 @@ class TrayApp:
             "--browser.gatherUsageStats",
             "false",
         ]
+        if getattr(sys, "frozen", False):
+            # Frozen: PyInstaller's bootloader does not implement `-m`, so
+            # `sys.executable -m streamlit` would re-launch this tray app
+            # itself. The specs bundle a dedicated `dashboard-server`
+            # executable next to the tray binary -- exec that instead.
+            exe_dir = os.path.dirname(sys.executable)
+            name = "dashboard-server.exe" if os.name == "nt" else "dashboard-server"
+            return [os.path.join(exe_dir, name), *args]
+        return [sys.executable, "-m", "streamlit", *args]
+
+    def start_server(self) -> None:
+        env = dict(os.environ)
+        # Defense in depth: no Streamlit telemetry, even if flags change.
+        env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+        cmd = self._server_command()
+        _flog(f"starting dashboard server: {os.path.basename(cmd[0])} (port {self.port})")
         self.server = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
         )
         wait_for_port(self.port, timeout=90)
+        _flog(f"dashboard server up on 127.0.0.1:{self.port}")
 
     def stop_server(self) -> None:
         if self.server is not None and self.server.poll() is None:
@@ -119,11 +154,13 @@ class TrayApp:
         try:
             window = self._ensure_window()
             window.show()
+            _flog("dashboard window shown")
             try:
                 window.restore()
             except Exception as exc:  # noqa: BLE001 - not all backends support restore
                 _log(f"window restore failed: {exc}")
         except Exception:  # noqa: BLE001 - webview broken/missing: use browser
+            _flog("webview unavailable, opening dashboard in browser")
             webbrowser.open(self.url)
 
     # -- tray actions ----------------------------------------------------
@@ -221,7 +258,12 @@ class TrayApp:
 
 
 def main() -> None:
-    TrayApp().run()
+    _flog("tray starting")
+    try:
+        TrayApp().run()
+    except BaseException:
+        _flog("fatal:\n" + traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":

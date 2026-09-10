@@ -48,6 +48,28 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# --- dashboard server -------------------------------------------------------
+# The tray app cannot use `sys.executable -m streamlit` when frozen
+# (PyInstaller's bootloader ignores `-m` and would re-launch the tray app
+# itself). So the Streamlit CLI gets its own console executable, placed
+# next to the tray binary; TrayApp.start_server() execs it when frozen.
+b = Analysis(
+    [os.path.join(ROOT, "tray", "run_dashboard.py")],
+    pathex=[],
+    binaries=[],
+    datas=[],
+    hiddenimports=["streamlit"],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+pyz_server = PYZ(b.pure, b.zipped_data, cipher=block_cipher)
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -65,8 +87,26 @@ exe = EXE(
     entitlements_file=None,
 )
 
+exe_server = EXE(
+    pyz_server,
+    b.scripts,
+    [],
+    exclude_binaries=True,
+    name="dashboard-server",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=True,  # console: real CLI semantics for the Streamlit server
+    disable_windowed_traceback=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
 coll = COLLECT(
     exe,
+    exe_server,
     a.binaries,
     a.zipfiles,
     a.datas,

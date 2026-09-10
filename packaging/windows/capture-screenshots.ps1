@@ -124,6 +124,24 @@ Start-Sleep -Seconds 15
 Focus-Window $app | Out-Null
 Start-Sleep -Seconds 2
 Save-Shot "app-first-run-2.png"
+
+# Ground truth: the tray app logs milestones to tray.log. Screenshots can
+# miss the window (focus quirks on headless runners), but the log proves
+# the dashboard server came up and the window was actually shown.
+$logFile = Join-Path $env:LOCALAPPDATA "Sanjays2402\copilot-usage-tracker\tray.log"
+$logOk = $false
+if (Test-Path $logFile) {
+    $logText = Get-Content $logFile -Raw
+    $logOk = ($logText -match "dashboard server up") -and ($logText -match "dashboard window shown")
+    Write-Host "--- tray.log (last 20 lines) ---"
+    Get-Content $logFile | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+} else {
+    Write-Host "tray.log not found at $logFile"
+}
+if (-not $logOk) {
+    throw "tray.log does not prove the dashboard server and window came up"
+}
+
 # A PyInstaller "Unhandled exception in script" dialog keeps the process
 # alive -- the screenshots above are the verification (reviewed manually),
 # but fail loudly if the app died outright.

@@ -60,3 +60,38 @@ def test_wait_for_port_success():
         wait_for_port(srv.getsockname()[1], timeout=5)
     finally:
         srv.close()
+
+
+def test_server_command_unfrozen_uses_module_flag():
+    import sys as _sys
+
+    from tray.app import TrayApp
+
+    cmd = TrayApp()._server_command()
+    assert cmd[0] == _sys.executable
+    assert cmd[1:3] == ["-m", "streamlit"]
+    assert cmd[3] == "run"
+
+
+def test_server_command_frozen_uses_bundled_binary(monkeypatch, tmp_path):
+    """Frozen apps must NOT use `sys.executable -m streamlit`: PyInstaller's
+    bootloader ignores `-m` and would re-launch the tray app itself."""
+    import os as _os
+    import sys as _sys
+
+    from tray.app import TrayApp
+
+    fake_exe = str(tmp_path / "copilot-usage-tray")
+    monkeypatch.setattr(_sys, "frozen", True, raising=False)
+    monkeypatch.setattr(_sys, "executable", fake_exe)
+    cmd = TrayApp()._server_command()
+    expected = "dashboard-server.exe" if _os.name == "nt" else "dashboard-server"
+    assert cmd[0] == str(tmp_path / expected)
+    assert cmd[1] == "run"
+    assert "-m" not in cmd
+
+
+def test_run_dashboard_entry_importable():
+    from tray import run_dashboard
+
+    assert callable(run_dashboard.main)

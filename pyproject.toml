@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "copilot-usage-tracker"
-version = "0.2.3"
+version = "0.2.4"
 description = "Open-source enterprise usage & cost tracking for GitHub Copilot: token usage, dollar spend, team attribution, budgets, and ROI insights."
 readme = "README.md"
 requires-python = ">=3.10"
