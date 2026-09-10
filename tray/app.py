@@ -40,6 +40,7 @@ from tray.util import (
     dashboard_url,
     find_free_port,
     resource_path,
+    wait_for_http_ok,
     wait_for_port,
     yesterday_str,
 )
@@ -137,6 +138,10 @@ class TrayApp:
         # Popen dup'ed the handle for the child; closing ours is safe.
         wait_for_port(self.port, timeout=150)
         _flog(f"dashboard server up on 127.0.0.1:{self.port}")
+        # TCP-accept is not serving: wait for Streamlit's own readiness
+        # signal so the milestone means a browser can actually load the page.
+        wait_for_http_ok(self.port, timeout=150)
+        _flog(f"dashboard serving HTTP on 127.0.0.1:{self.port}")
 
     def stop_server(self) -> None:
         if self.server is not None and self.server.poll() is None:
@@ -279,18 +284,22 @@ class TrayApp:
         if not _configured():
             # First run: pop the setup page so the user never needs a terminal.
             self.show_dashboard()
-        if use_webview:
-            import webview
+        try:
+            if use_webview:
+                import webview
 
-            webview.start()
-            # webview.start() returns after the window is destroyed (Quit)
-        else:
-            # No native window on this machine (e.g. WebView2 runtime
-            # missing): the dashboard lives in the user's browser and the
-            # tray icon keeps running until Quit.
-            _flog("running without native window; dashboard is in the browser")
-            self._stop_event.wait()
-        self.stop_server()
+                webview.start()
+                # webview.start() returns after the window is destroyed (Quit)
+            else:
+                # No native window on this machine (e.g. WebView2 runtime
+                # missing): the dashboard lives in the user's browser and the
+                # tray icon keeps running until Quit.
+                _flog("running without native window; dashboard is in the browser")
+                self._stop_event.wait()
+        finally:
+            # Never orphan the server: even if the GUI loop raises, the
+            # dashboard process must come down with the tray.
+            self.stop_server()
 
 
 def main() -> None:

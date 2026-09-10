@@ -10,6 +10,7 @@ from tray.util import (
     dashboard_url,
     find_free_port,
     resource_path,
+    wait_for_http_ok,
     wait_for_port,
     yesterday_str,
 )
@@ -174,3 +175,46 @@ def test_show_dashboard_browser_fallback(monkeypatch):
     app._webview_ok = False
     app.show_dashboard()
     assert opened == [app.url]
+
+
+def _serve_health(body: bytes, status: int = 200):
+    """Run a one-shot HTTP server answering /_stcore/health; return its port."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, srv.server_address[1]
+
+
+def test_wait_for_http_ok_success():
+    srv, port = _serve_health(b"ok")
+    try:
+        wait_for_http_ok(port, timeout=10)
+    finally:
+        srv.shutdown()
+
+
+def test_wait_for_http_ok_wrong_body():
+    srv, port = _serve_health(b"starting")
+    try:
+        with pytest.raises(TimeoutError):
+            wait_for_http_ok(port, timeout=2)
+    finally:
+        srv.shutdown()
+
+
+def test_wait_for_http_ok_nothing_listening():
+    port = find_free_port()
+    with pytest.raises(TimeoutError):
+        wait_for_http_ok(port, timeout=2)

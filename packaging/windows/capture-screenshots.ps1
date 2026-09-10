@@ -142,7 +142,9 @@ while ((Get-Date) -lt $deadline) {
     Save-Shot "app-first-run-$shotsTaken.png"
     if (Test-Path $logFile) {
         $logText = Get-Content $logFile -Raw
-        $m = [regex]::Match($logText, "dashboard server up on 127\.0\.0\.1:(\d+)")
+        # "dashboard serving HTTP" is the strong milestone: the tray waits for
+        # Streamlit's /_stcore/health, so it means a browser can load the page.
+        $m = [regex]::Match($logText, "dashboard serving HTTP on 127\.0\.0\.1:(\d+)")
         if ($m.Success) {
             $serverUp = $true
             $port = $m.Groups[1].Value
@@ -168,22 +170,19 @@ if (-not $serverUp) {
     throw "dashboard server never came up (see tray.log above)"
 }
 
-# The server must actually serve the Streamlit app over HTTP.
+# The tray app itself waits for Streamlit's /_stcore/health before logging
+# "dashboard serving HTTP", so the server-up milestone already proves the
+# dashboard serves. Confirm independently with curl.exe (visible errors,
+# no PowerShell web-cmdlet quirks).
 $dashOk = $false
+$healthUrl = "http://127.0.0.1:$port/_stcore/health"
 for ($i = 0; $i -lt 12 -and -not $dashOk; $i++) {
-    try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 10
-        if ($resp.StatusCode -eq 200 -and $resp.Content -match "streamlit") {
-            $dashOk = $true
-        } else {
-            Start-Sleep -Seconds 10
-        }
-    } catch {
-        Start-Sleep -Seconds 10
-    }
+    $body = & curl.exe --noproxy "*" -s -m 10 -w "`n%{http_code}" $healthUrl 2>&1
+    Write-Host "health attempt $($i + 1): $body"
+    if ($body -match "(?m)^200$") { $dashOk = $true } else { Start-Sleep -Seconds 10 }
 }
 if (-not $dashOk) {
-    throw "dashboard server is up but did not serve the app over HTTP"
+    throw "dashboard server is up but did not serve /_stcore/health (see attempts above)"
 }
 Write-Host "dashboard serves HTTP 200 on port $port"
 

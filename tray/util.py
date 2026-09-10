@@ -50,6 +50,31 @@ def wait_for_port(port: int, timeout: float = 60.0) -> None:
     raise TimeoutError(f"nothing listening on 127.0.0.1:{port} after {timeout}s")
 
 
+def wait_for_http_ok(port: int, timeout: float = 120.0) -> None:
+    """Block until the dashboard answers ``/_stcore/health`` with ``ok``.
+
+    TCP-accept is not enough: Streamlit binds the socket before the app is
+    actually serving. The health endpoint is Streamlit's own readiness
+    signal, so waiting on it means "dashboard server up" is true in the
+    sense the user cares about -- a browser can load the page.
+    """
+    import urllib.request
+
+    url = f"http://127.0.0.1:{port}/_stcore/health"
+    deadline = time.time() + timeout
+    last_error = "no attempt yet"
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                if resp.read().decode("utf-8", "replace").strip() == "ok":
+                    return
+                last_error = f"unexpected status {resp.status}"
+        except Exception as exc:  # noqa: BLE001 - keep polling until timeout
+            last_error = repr(exc)
+        time.sleep(1)
+    raise TimeoutError(f"dashboard did not serve HTTP ok after {timeout}s: {last_error}")
+
+
 def dashboard_url(port: int) -> str:
     return f"http://127.0.0.1:{port}"
 
