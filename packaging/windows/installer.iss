@@ -4,14 +4,14 @@
 
 #define MyAppName "Copilot Usage Tracker"
 #define MyAppExe "copilot-usage-tray.exe"
-#define MyAppId "{104C27E1-409E-46A5-981B-A79EB2A23913}"
+#define MyAppId "104C27E1-409E-46A5-981B-A79EB2A23913"
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
 #endif
 
 [Setup]
-AppId={#MyAppId}
+AppId={{#MyAppId}}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppVerName={#MyAppName} {#AppVersion}
