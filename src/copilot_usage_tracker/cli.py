@@ -1,0 +1,125 @@
+"""Command-line interface."""
+
+from __future__ import annotations
+
+import json
+
+import click
+
+from .attribution import attribute_to_teams
+from .budgets import Budget, check_budgets
+from .collector import BillingClient, CopilotReportsClient
+from .config import load_settings
+from .store import UsageStore
+from .tokens import PriceBook, credits_to_usd
+
+
+@click.group()
+@click.version_option()
+def main() -> None:
+    """Track GitHub Copilot AI-credit usage and dollar costs at enterprise scale."""
+
+
+@main.command()
+@click.option("--day", required=True, help="Report day as YYYY-MM-DD")
+@click.option("--with-teams", is_flag=True, help="Also fetch user-teams and build team rollups")
+def collect(day: str, with_teams: bool) -> None:
+    """Pull a day's usage reports from GitHub and store local snapshots."""
+    settings = load_settings()
+    client = CopilotReportsClient(settings)
+    store = UsageStore(settings.db_path)
+    scope = settings.enterprise or settings.org
+    scope_type = "enterprise" if settings.enterprise else "org"
+
+    users = client.users_day(day)
+    for u in users:
+        store.upsert_user_day(
+            day,
+            scope,
+            u.get("user_id"),
+            user_login=u.get("user_login"),
+            ai_credits_used=u.get("ai_credits_used", 0) or 0,
+            interactions=u.get("user_initiated_interaction_count", 0) or 0,
+            loc_added=u.get("loc_added_sum", 0) or 0,
+            raw=u,
+        )
+
+    entity_rows = client.entity_day(day)
+    credits = sum(r.get("ai_credits_used", 0) or 0 for r in entity_rows)
+    active = sum(1 for u in users if (u.get("ai_credits_used", 0) or 0) > 0)
+    store.upsert_scope_day(
+        day, scope, scope_type, ai_credits_used=credits, active_users=active
+    )
+
+    team_count = 0
+    if with_teams:
+        teams = attribute_to_teams(users, client.user_teams_day(day))
+        for t in teams:
+            store.upsert_team_day(day, scope, t["team_id"], **t)
+        team_count = len(teams)
+
+    click.echo(
+        f"Stored {len(users)} user rows, {credits:,.0f} credits "
+        f"(${credits_to_usd(credits):,.2f}), {team_count} team rollups for {day}"
+    )
+    store.close()
+
+
+@main.command()
+@click.option("--month", required=True, help="Billing month as YYYY-MM")
+@click.option("--scope", default=None, help="Limit to one scope")
+@click.option("--plan", type=click.Choice(["business", "enterprise"]), default="business")
+@click.option("--seats", type=int, default=0, help="Granted seats for cost math")
+@click.option("--overage/--no-overage", default=False, help="Bill credits beyond the pooled allowance")
+def report(month: str, scope: str | None, plan: str, seats: int, overage: bool) -> None:
+    """Print the dollar-cost report for a month."""
+    settings = load_settings()
+    store = UsageStore(settings.db_path)
+    credits = store.monthly_credits(month, scope)
+    book = PriceBook.for_plan(plan, overage_allowed=overage)
+    result = book.monthly_cost(seats, credits)
+    result["month"] = month
+    result["scope"] = scope
+    result["top_users"] = store.top_users(month)
+    click.echo(json.dumps(result, indent=2))
+    store.close()
+
+
+@main.command()
+@click.option("--year", type=int, required=True)
+@click.option("--month", type=int, required=True)
+@click.option("--user", default=None, help="Single user login (enterprise billing API)")
+def billing(year: int, month: int, user: str | None) -> None:
+    """Dump exact AI-credit billing items from GitHub's billing API."""
+    settings = load_settings()
+    client = BillingClient(settings)
+    items = client.ai_credit_usage(year, month, user=user)
+    click.echo(json.dumps(items, indent=2)[:4000])
+
+
+@main.command()
+@click.option("--limit", type=float, required=True, help="Budget limit in USD")
+@click.option("--spent", type=float, required=True, help="Spend so far in USD")
+@click.option("--scope", default="enterprise")
+def budget_check(limit: float, spent: float, scope: str) -> None:
+    """Evaluate a budget and print any alerts."""
+    alerts = check_budgets([Budget(scope=scope, limit_usd=limit, spent_usd=spent)])
+    if not alerts:
+        click.echo("OK: within budget")
+    for a in alerts:
+        click.echo(a.message)
+
+
+@main.command()
+@click.option("--credits", type=float, required=True, help="AI credits consumed")
+@click.option("--seats", type=int, default=0)
+@click.option("--plan", type=click.Choice(["business", "enterprise"]), default="business")
+@click.option("--overage/--no-overage", default=False)
+def estimate(credits: float, seats: int, plan: str, overage: bool) -> None:
+    """Estimate a month's dollar cost from credit usage and a price book."""
+    book = PriceBook.for_plan(plan, overage_allowed=overage)
+    click.echo(json.dumps(book.monthly_cost(seats, credits), indent=2))
+
+
+if __name__ == "__main__":
+    main()
