@@ -4,14 +4,16 @@
 
 #define MyAppName "Copilot Usage Tracker"
 #define MyAppExe "copilot-usage-tray.exe"
-#define MyAppId "104C27E1-409E-46A5-981B-A79EB2A23913"
+; NOTE: AppId is hardcoded below with {{ }} (Inno's literal-brace escape).
+; Do NOT route it through {#...}: ISPP collapses {{ before Inno parses
+; constants, which breaks the GUID into an "unknown constant" error.
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
 #endif
 
 [Setup]
-AppId={{#MyAppId}}
+AppId={{104C27E1-409E-46A5-981B-A79EB2A23913}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppVerName={#MyAppName} {#AppVersion}
