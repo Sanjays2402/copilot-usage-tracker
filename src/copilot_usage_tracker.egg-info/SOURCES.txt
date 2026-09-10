@@ -4,6 +4,7 @@ pyproject.toml
 src/copilot_usage_tracker/__init__.py
 src/copilot_usage_tracker/attribution.py
 src/copilot_usage_tracker/audit.py
+src/copilot_usage_tracker/auth.py
 src/copilot_usage_tracker/billing_reports.py
 src/copilot_usage_tracker/budgets.py
 src/copilot_usage_tracker/cli.py
@@ -22,6 +23,7 @@ src/copilot_usage_tracker.egg-info/requires.txt
 src/copilot_usage_tracker.egg-info/top_level.txt
 tests/test_attribution.py
 tests/test_audit.py
+tests/test_auth.py
 tests/test_billing_reports.py
 tests/test_budgets.py
 tests/test_insights.py

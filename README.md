@@ -51,8 +51,11 @@ sinks, anomaly detection, ROI module).
 ```bash
 pip install -e "."
 
-export GITHUB_TOKEN="ghp_..."          # classic PAT or fine-grained token
 export COPILOT_ENTERPRISE="acme"       # or COPILOT_ORG="acme-corp"
+
+# Authenticate (token resolved from env, OS keyring, gh CLI, or a hidden
+# prompt; the tool itself never stores it anywhere)
+copilot-usage login
 
 # Collect yesterday's usage (add --with-teams for team rollups)
 copilot-usage collect --day 2026-09-08 --with-teams

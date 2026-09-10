@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 
 import click
 
 from .attribution import attribute_to_teams
 from .audit import AuditLogger
+from .auth import (
+    TokenNotFoundError,
+    delete_from_keyring,
+    mask_token,
+    prompt_token,
+    resolve_token,
+    save_to_keyring,
+    validate_token,
+)
 from .billing_reports import BillingReportsClient
 from .budgets import Budget, check_budgets
 from .collector import BillingClient, CopilotReportsClient
@@ -24,12 +35,19 @@ from .store import UsageStore
 from .tokens import PriceBook, credits_to_usd
 
 
-def _policy_and_settings():
+def _api_base(policy) -> str:
+    return (
+        policy.network.api_base
+        or os.environ.get("COPILOT_API_BASE", "https://api.github.com")
+    )
+
+
+def _policy_and_settings(require_token: bool = True):
     """Load policy.yaml (if present), then settings honoring it."""
     policy = load_policy()
-    settings = load_settings(policy)
+    settings = load_settings(policy, require_token=require_token)
     scope = settings.enterprise or settings.org
-    if not policy.scope_allowed(scope):
+    if require_token and not policy.scope_allowed(scope):
         raise click.ClickException(
             f"Scope {scope!r} is not in policy.yaml allowed_scopes; "
             "collection refused by enterprise policy."
@@ -84,7 +102,7 @@ def purge(days: int | None) -> None:
             "No retention window configured: pass --days or set "
             "privacy.retention_days in policy.yaml"
         )
-    settings = load_settings(policy)
+    settings = load_settings(policy, require_token=False)
     store = UsageStore(settings.db_path)
     counts = store.purge_older_than(days)
     store.close()
@@ -211,7 +229,7 @@ def export_tokens(year: int, month: int, report_type: str) -> None:
 def report(month: str, scope: str | None, plan: str, seats: int, overage: bool) -> None:
     """Print the dollar-cost report for a month."""
     policy = load_policy()
-    settings = load_settings(policy)
+    settings = load_settings(policy, require_token=False)
     store = UsageStore(settings.db_path)
     credits = store.monthly_credits(month, scope)
     book = PriceBook.for_plan(plan, overage_allowed=overage)
@@ -257,6 +275,73 @@ def estimate(credits: float, seats: int, plan: str, overage: bool) -> None:
     """Estimate a month's dollar cost from credit usage and a price book."""
     book = PriceBook.for_plan(plan, overage_allowed=overage)
     click.echo(json.dumps(book.monthly_cost(seats, credits), indent=2))
+
+
+@main.command()
+def login() -> None:
+    """Guided GitHub authentication. The token is never stored by this tool."""
+    try:
+        token, source = resolve_token()
+        click.echo(f"Already authenticated via {source} (token {mask_token(token)}).")
+        click.echo("Run `copilot-usage logout` to remove a keyring token and switch methods.")
+        return
+    except TokenNotFoundError:
+        pass
+    if shutil.which("gh"):
+        click.echo("Tip: `gh auth login` once and this tool will reuse that session "
+                   "with no new secret.")
+    token = prompt_token()
+    if not token:
+        raise click.ClickException("No token entered.")
+    policy = load_policy()
+    try:
+        login_name, scopes = validate_token(token, _api_base(policy))
+    except Exception as exc:
+        raise click.ClickException(f"Token validation failed: {exc}") from exc
+    click.echo(f"Token is valid for @{login_name}"
+               + (f" (scopes: {scopes})" if scopes else ""))
+    if click.confirm(
+        "Save it to your OS keyring so future runs don't ask again?",
+        default=True,
+    ):
+        try:
+            save_to_keyring(token)
+        except Exception as exc:
+            raise click.ClickException(
+                f"Could not access the OS keyring ({exc}). "
+                "Use GITHUB_TOKEN in your environment instead."
+            ) from exc
+        click.echo("Saved to OS keyring. `copilot-usage logout` removes it.")
+    else:
+        click.echo("Not saved. Set GITHUB_TOKEN in your environment "
+                   "to use it non-interactively.")
+
+
+@main.command()
+def logout() -> None:
+    """Remove the GitHub token from the OS keyring."""
+    if delete_from_keyring():
+        click.echo("Removed the token from the OS keyring.")
+    else:
+        click.echo("No token stored in the OS keyring.")
+    click.echo("Note: GITHUB_TOKEN and `gh` CLI sessions are managed outside this tool.")
+
+
+@main.command()
+def auth() -> None:
+    """Show how the GitHub token is sourced, and validate it."""
+    try:
+        token, source = resolve_token()
+    except TokenNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"source: {source}")
+    click.echo(f"token:  {mask_token(token)}")
+    try:
+        login_name, scopes = validate_token(token, _api_base(load_policy()))
+        click.echo(f"valid:  yes, @{login_name}"
+                   + (f" (scopes: {scopes})" if scopes else ""))
+    except Exception as exc:
+        raise click.ClickException(f"Token validation failed: {exc}") from exc
 
 
 @main.command()

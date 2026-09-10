@@ -19,6 +19,11 @@
       with auto-purge, corporate proxy/CA, GHES base URL, JSONL audit log
       of every API call; `init-policy --preset strict|standard|aggregate`,
       `purge`; `docs/ENTERPRISE.md` compliance guide
+- [x] Token handling (`auth.py`): resolved once per process from
+      `GITHUB_TOKEN` → OS keyring → `gh` CLI → hidden prompt; never
+      persisted by the tool (excluded from repr, masked display, absent
+      from audit log); `login` / `logout` / `auth` commands; offline
+      commands no longer require a token
 - [x] Streamlit dashboard (overview, teams, users, models & tokens, budgets)
 - [x] Desktop tray app (Windows hidden icons / macOS menu bar): popup
       dashboard on click, background data collection, PyInstaller packaging

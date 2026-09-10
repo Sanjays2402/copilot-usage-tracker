@@ -43,6 +43,31 @@ Nothing leaves the machine except the GitHub API calls themselves.
 Streamlit's usage telemetry is disabled (`--browser.gatherUsageStats false`
 plus `STREAMLIT_BROWSER_GATHER_USAGE_STATS=false` in the tray app).
 
+## Token handling: sourced, never stored
+
+The tool resolves the GitHub token once per process (then reuses it from
+memory for every API call) from the first source that has one:
+
+1. `GITHUB_TOKEN` env var — CI / containers / secrets managers.
+2. OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret
+   Service) — written only by `copilot-usage login` with your explicit
+   consent; removed by `copilot-usage logout`.
+3. `gh` CLI session (`gh auth token`) — reuses an existing login, so no
+   new secret exists at all.
+4. Interactive prompt (hidden input) — memory-only.
+
+The tool itself **never writes the token anywhere**: not to
+`policy.yaml`, not to SQLite, not to the audit log, not to any cache
+file. It is excluded from `repr(Settings)` (no traceback leaks), shown
+only masked (`ghp_…abcd`), and `copilot-usage auth` reports which source
+is in play plus a live validation (`@user`, scopes).
+
+```bash
+copilot-usage login    # guided: validates, offers OS-keyring storage
+copilot-usage auth     # source + masked token + live validation
+copilot-usage logout   # removes the keyring token
+```
+
 ## Token scopes (least privilege)
 
 Create a token for a service account (not a human admin's PAT) with the
@@ -54,9 +79,11 @@ minimum needed for your scope:
   enterprise billing read access.
 - **Billing reports export**: same billing read access.
 
-The token needs **no** `repo`, `write:org`, or admin scopes. Store it in
-`GITHUB_TOKEN` (env / secrets manager) — never in `policy.yaml`, never in
-the repo.
+The token needs **no** `repo`, `write:org`, or admin scopes. Authenticate
+with `copilot-usage login` (guided; the token is never stored by the tool
+itself — it lives in your OS keyring only if you opt in, otherwise in
+`GITHUB_TOKEN` or your `gh` CLI session). Never put a token in
+`policy.yaml` or the repo.
 
 For GitHub Enterprise Server, point the tool at your host:
 
