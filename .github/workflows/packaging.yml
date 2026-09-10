@@ -15,6 +15,7 @@ name: Packaging
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:  # manual "Run workflow" button / API dispatch
 
 permissions:
   contents: write

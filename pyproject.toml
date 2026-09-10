@@ -47,3 +47,6 @@ target-version = "py310"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# tests/test_tray.py imports the top-level tray/ and dashboard/ packages,
+# which are not installed; make the repo root importable like a local run.
+pythonpath = ["."]
