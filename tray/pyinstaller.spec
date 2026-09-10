@@ -6,16 +6,24 @@ expect to extend hiddenimports/datas for your exact Streamlit version
 and to test the bundle on a clean machine before distributing.
 """
 
+import os
+
+# Anchor every path on the spec file's directory: PyInstaller resolves
+# bare relative paths in a spec against the CWD, which differs between
+# local builds and CI.
+HERE = os.path.abspath(SPECPATH)
+ROOT = os.path.abspath(os.path.join(HERE, ".."))
+
 block_cipher = None
 
 a = Analysis(
-    ["tray/app.py"],
+    [os.path.join(ROOT, "tray", "app.py")],
     pathex=[],
     binaries=[],
     datas=[
-        ("dashboard", "dashboard"),
-        ("src/copilot_usage_tracker", "copilot_usage_tracker"),
-        ("tray", "tray"),
+        (os.path.join(ROOT, "dashboard"), "dashboard"),
+        (os.path.join(ROOT, "src", "copilot_usage_tracker"), "copilot_usage_tracker"),
+        (os.path.join(ROOT, "tray"), "tray"),
     ],
     hiddenimports=[
         "streamlit",
