@@ -82,8 +82,7 @@ def token_privilege_verdict(scopes: str | None) -> dict:
         "level": "least-privilege",
         "write_scopes": [],
         "message": (
-            "No write/admin scopes detected. This token follows the "
-            "least-privilege principle."
+            "No write/admin scopes detected. This token follows the least-privilege principle."
         ),
     }
 
@@ -101,14 +100,10 @@ def data_inventory(store) -> list[dict]:
     rows = []
     for table, description in TABLE_DESCRIPTIONS.items():
         try:
-            count = store.conn.execute(
-                f"SELECT COUNT(*) AS n FROM {table}"
-            ).fetchone()["n"]
+            count = store.conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
         except Exception:  # noqa: BLE001 - a missing table is not fatal
             count = 0
-        rows.append(
-            {"table": table, "rows": count, "contents": description}
-        )
+        rows.append({"table": table, "rows": count, "contents": description})
     return rows
 
 

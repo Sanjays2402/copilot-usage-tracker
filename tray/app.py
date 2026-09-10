@@ -57,7 +57,7 @@ def _configured() -> bool:
 
         return appconfig.is_configured()
     except Exception:  # noqa: BLE001 - fail open: dashboard shows setup anyway
-        return True
+        return False
 
 
 class TrayApp:
@@ -74,11 +74,17 @@ class TrayApp:
         # Defense in depth: no Streamlit telemetry, even if flags change.
         env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
         cmd = [
-            sys.executable, "-m", "streamlit", "run",
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
             resource_path("dashboard/app.py"),
-            "--server.port", str(self.port),
-            "--server.headless", "true",
-            "--browser.gatherUsageStats", "false",
+            "--server.port",
+            str(self.port),
+            "--server.headless",
+            "true",
+            "--browser.gatherUsageStats",
+            "false",
         ]
         self.server = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
@@ -128,9 +134,7 @@ class TrayApp:
                 from copilot_usage_tracker.sync import run_collection, summary_line
 
                 cfg = appconfig.load_app_config()
-                summary = run_collection(
-                    yesterday_str(), with_teams=cfg.with_teams
-                )
+                summary = run_collection(yesterday_str(), with_teams=cfg.with_teams)
                 self._notify(summary_line(summary))
             except Exception as exc:  # noqa: BLE001 - surface to the user
                 self._notify(f"Collection failed: {exc}")
@@ -166,9 +170,7 @@ class TrayApp:
             time.sleep(hours * 3600)
             try:
                 cfg = appconfig.load_app_config()
-                summary = run_collection(
-                    yesterday_str(), with_teams=cfg.with_teams
-                )
+                summary = run_collection(yesterday_str(), with_teams=cfg.with_teams)
                 self._notify("Auto-collect: " + summary_line(summary))
             except Exception as exc:  # noqa: BLE001 - keep the loop alive
                 _log(f"auto-collect failed: {exc}")
@@ -205,9 +207,7 @@ class TrayApp:
         )
         self._icon = pystray.Icon(APP_NAME, make_icon(), APP_NAME, menu)
         threading.Thread(target=self._icon.run, daemon=True, name="tray-icon").start()
-        threading.Thread(
-            target=self._auto_collect_loop, daemon=True, name="auto-collect"
-        ).start()
+        threading.Thread(target=self._auto_collect_loop, daemon=True, name="auto-collect").start()
 
         import webview
 

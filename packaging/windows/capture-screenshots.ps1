@@ -110,6 +110,10 @@ Write-Host "installed OK: $appExe"
 
 # ---- Phase 3: launch the app, screenshot first-run setup -------------------
 Write-Host "phase 3: launch installed app"
+# Minimize everything first: the runner's terminal is maximized and would
+# otherwise cover the app window in screenshots.
+(New-Object -ComObject Shell.Application).MinimizeAll()
+Start-Sleep -Seconds 2
 $app = Start-Process $appExe -PassThru
 Start-Sleep -Seconds 45
 # Focus the app window so the screenshot captures it (not the desktop).
