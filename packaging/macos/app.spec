@@ -8,7 +8,14 @@ in a DMG.
 
 import os
 
+from PyInstaller.utils.hooks import copy_metadata
+
 ROOT = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
+
+# streamlit.version calls importlib.metadata.version("streamlit") at import
+# time; the frozen dashboard-server exe dies with PackageNotFoundError
+# unless the dist-info is collected explicitly.
+STREAMLIT_METADATA = copy_metadata("streamlit")
 
 VERSION = "0.1.0"
 try:
@@ -67,7 +74,7 @@ b = Analysis(
     [os.path.join(ROOT, "tray", "run_dashboard.py")],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=STREAMLIT_METADATA,
     hiddenimports=["streamlit"],
     hookspath=[],
     hooksconfig={},

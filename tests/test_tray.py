@@ -71,6 +71,11 @@ def test_server_command_unfrozen_uses_module_flag():
     assert cmd[0] == _sys.executable
     assert cmd[1:3] == ["-m", "streamlit"]
     assert cmd[3] == "run"
+    # Frozen or not, developmentMode must stay off: Streamlit enables it
+    # whenever it isn't running from site-packages, and it rejects
+    # --server.port in dev mode.
+    assert "--global.developmentMode" in cmd
+    assert cmd[cmd.index("--global.developmentMode") + 1] == "false"
 
 
 def test_server_command_frozen_uses_bundled_binary(monkeypatch, tmp_path):
@@ -95,3 +100,20 @@ def test_run_dashboard_entry_importable():
     from tray import run_dashboard
 
     assert callable(run_dashboard.main)
+
+
+def test_ensure_streamlit_version_fallback(monkeypatch):
+    """If package metadata is missing (frozen bundle without dist-info),
+    run_dashboard injects streamlit.version instead of crashing."""
+    import importlib.metadata as md
+    import sys as _sys
+
+    from tray import run_dashboard
+
+    def _boom(name):
+        raise md.PackageNotFoundError(name)
+
+    monkeypatch.setattr(md, "version", _boom)
+    monkeypatch.delitem(_sys.modules, "streamlit.version", raising=False)
+    run_dashboard._ensure_streamlit_version()
+    assert _sys.modules["streamlit.version"].STREAMLIT_VERSION_STRING == "0.0.0+frozen"

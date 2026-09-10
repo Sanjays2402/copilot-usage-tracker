@@ -97,6 +97,11 @@ class TrayApp:
         args = [
             "run",
             script,
+            # Streamlit thinks any install outside site-packages is a dev
+            # checkout and enables developmentMode (which rejects
+            # --server.port). A frozen bundle is never a checkout.
+            "--global.developmentMode",
+            "false",
             "--server.port",
             str(self.port),
             "--server.headless",

@@ -8,11 +8,18 @@ and to test the bundle on a clean machine before distributing.
 
 import os
 
+from PyInstaller.utils.hooks import copy_metadata
+
 # Anchor every path on the spec file's directory: PyInstaller resolves
 # bare relative paths in a spec against the CWD, which differs between
 # local builds and CI.
 HERE = os.path.abspath(SPECPATH)
 ROOT = os.path.abspath(os.path.join(HERE, ".."))
+
+# streamlit.version calls importlib.metadata.version("streamlit") at import
+# time; the frozen dashboard-server exe dies with PackageNotFoundError
+# unless the dist-info is collected explicitly.
+STREAMLIT_METADATA = copy_metadata("streamlit")
 
 block_cipher = None
 
@@ -57,7 +64,7 @@ b = Analysis(
     [os.path.join(ROOT, "tray", "run_dashboard.py")],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=STREAMLIT_METADATA,
     hiddenimports=["streamlit"],
     hookspath=[],
     hooksconfig={},
