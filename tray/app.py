@@ -17,8 +17,30 @@ import sys
 import threading
 import webbrowser
 
-from .icon import make_icon
-from .util import dashboard_url, find_free_port, resource_path, wait_for_port, yesterday_str
+if __package__ in (None, ""):
+    # Frozen entry point (PyInstaller runs this file as top-level module
+    # "app", so relative imports fail with "no known parent package").
+    # Make the bundled `tray` package importable and use absolute imports.
+    import os as _os
+    import sys as _sys
+
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    for _candidate in (
+        _here,  # source checkout: <root>/tray/app.py -> <root>
+        _os.path.dirname(_here),  # frozen: <_MEIPASS>/tray/app.py -> <_MEIPASS>
+    ):
+        if _os.path.isdir(_os.path.join(_candidate, "tray")) and _candidate not in _sys.path:
+            _sys.path.insert(0, _candidate)
+    del _os, _sys, _here, _candidate
+
+from tray.icon import make_icon
+from tray.util import (
+    dashboard_url,
+    find_free_port,
+    resource_path,
+    wait_for_port,
+    yesterday_str,
+)
 
 APP_NAME = "Copilot Usage"
 

@@ -47,6 +47,11 @@ from copilot_usage_tracker.policy import load_policy
 from copilot_usage_tracker.store import UsageStore
 from copilot_usage_tracker.sync import run_collection, summary_line, yesterday_str
 from copilot_usage_tracker.tokens import PriceBook
+from copilot_usage_tracker.trust import (
+    data_inventory,
+    network_summary,
+    token_privilege_verdict,
+)
 
 
 def _setup_page() -> None:
@@ -70,9 +75,11 @@ def _setup_page() -> None:
         placeholder="e.g. acme-corp",
     ).strip()
 
+    _resolved: str | None = None
     try:
         _token, source = resolve_token()
         st.success(f"GitHub token found via {source} ({mask_token(_token)}).")
+        _resolved = _token
         token: str | None = None
     except TokenNotFoundError:
         st.write(
@@ -83,6 +90,13 @@ def _setup_page() -> None:
         )
         token = st.text_input("GitHub token", type="password").strip() or None
 
+    consent = st.checkbox(
+        "I understand this app downloads Copilot usage reports from GitHub "
+        "and stores them only on this machine. It never sends data anywhere "
+        "else.",
+        value=False,
+    )
+
     remember = st.checkbox(
         "Remember the token on this machine (OS keyring)", value=True
     )
@@ -90,14 +104,25 @@ def _setup_page() -> None:
         if not slug:
             st.error("Enter your organization login or enterprise slug.")
             st.stop()
+        if not consent:
+            st.error("Please confirm you understand how your data is handled.")
+            st.stop()
         api_base = cfg.api_base
-        if token:
+        check_token = token or _resolved
+        if check_token:
             try:
-                login, _scopes = validate_token(token, api_base)
+                login, token_scopes = validate_token(check_token, api_base)
             except Exception as exc:  # noqa: BLE001 - show validation errors plainly
                 st.error(f"That token didn't work: {exc}")
                 st.stop()
             st.success(f"Token works — signed in as @{login}.")
+            verdict = token_privilege_verdict(token_scopes)
+            if verdict["level"] == "elevated":
+                st.warning(verdict["message"])
+            elif verdict["level"] == "unknown":
+                st.info(verdict["message"])
+            else:
+                st.success(verdict["message"])
             if remember:
                 try:
                     save_to_keyring(token)
@@ -239,9 +264,20 @@ st.sidebar.caption(
     "GitHub API endpoint. No third-party telemetry."
 )
 
-tab_overview, tab_engage, tab_teams, tab_users, tab_seats, tab_models, tab_budgets, tab_audit = st.tabs(
-    ["Overview", "Engagement", "Teams", "Users", "Seats", "Models & Tokens", "Budgets", "Audit"]
+tab_overview, tab_engage, tab_teams, tab_users, tab_seats, tab_models, tab_budgets, tab_audit, tab_security = st.tabs(
+    ["Overview", "Engagement", "Teams", "Users", "Seats", "Models & Tokens", "Budgets", "Audit", "Security"]
 )
+
+# Audit records feed both the Audit tab and the Security tab's network proof.
+audit_path = os.environ.get("COPILOT_AUDIT_FILE")
+if not audit_path:
+    try:
+        audit_path = load_policy().audit.path
+    except Exception:  # noqa: BLE001 - policy optional
+        audit_path = os.path.expanduser(
+            "~/.copilot-usage-tracker/audit.jsonl")
+audit_records = read_audit_log(audit_path, limit=500)
+api_base = _cfg.api_base
 
 with tab_overview:
     c1, c2, c3, c4 = st.columns(4)
@@ -416,14 +452,7 @@ with tab_audit:
         "are never recorded). Compliance teams can verify the tool is "
         "read-only."
     )
-    audit_path = os.environ.get("COPILOT_AUDIT_FILE")
-    if not audit_path:
-        try:
-            audit_path = load_policy().audit.path
-        except Exception:  # noqa: BLE001 - policy optional
-            audit_path = os.path.expanduser(
-                "~/.copilot-usage-tracker/audit.jsonl")
-    records = read_audit_log(audit_path, limit=200)
+    records = audit_records
     if records:
         df = pd.DataFrame([
             {
@@ -439,5 +468,86 @@ with tab_audit:
         st.caption(f"Showing {len(records)} most recent entries from {audit_path}")
     else:
         st.info("No audit entries yet — they appear after the first collection.")
+
+with tab_security:
+    st.subheader("🔒 Security & privacy")
+    st.write(
+        "Everything this app does with your token and your data, "
+        "verifiable right here. See [SECURITY.md](https://github.com/"
+        "Sanjays2402/copilot-usage-tracker/blob/main/SECURITY.md) for the "
+        "full threat model."
+    )
+
+    st.markdown("**Your GitHub token**")
+    try:
+        _tok, _src = resolve_token()
+        c1, c2 = st.columns(2)
+        c1.metric("Token source", _src)
+        c2.metric("Token value", mask_token(_tok))
+        if st.button("Check token privileges"):
+            with st.spinner("Asking GitHub about this token's scopes…"):
+                try:
+                    _login, _scopes = validate_token(_tok, api_base)
+                    verdict = token_privilege_verdict(_scopes)
+                    if verdict["level"] == "elevated":
+                        st.warning(verdict["message"])
+                    elif verdict["level"] == "unknown":
+                        st.info(verdict["message"])
+                    else:
+                        st.success(verdict["message"])
+                except Exception as exc:  # noqa: BLE001 - network may fail
+                    st.error(f"Could not check scopes: {exc}")
+        st.caption(
+            "The app never stores your token — not in files, not in the "
+            "database, not in logs. It lives in your OS keyring or "
+            "environment and only in process memory."
+        )
+    except TokenNotFoundError:
+        st.warning("No token found.")
+
+    st.markdown("**Network proof — the app is read-only**")
+    net = network_summary(audit_records, api_base)
+    n1, n2, n3 = st.columns(3)
+    n1.metric("API requests logged", f"{net['total_requests']:,}")
+    n2.metric("Non-GET requests", f"{net['non_get_requests']:,}")
+    n3.metric("Third-party hosts contacted",
+              f"{len(net['third_party_hosts']):,}")
+    if net["read_only"] and net["local_only"] and net["total_requests"]:
+        st.success(
+            "Verified from the audit log: every request was a read-only "
+            "GET to your GitHub API host. Nothing was ever sent anywhere else."
+        )
+    elif not net["total_requests"]:
+        st.info("No API calls logged yet — collect data first.")
+    else:
+        st.warning(
+            "Unexpected traffic detected — review the Audit tab. "
+            f"Methods: {net['methods']}, other hosts: {net['third_party_hosts']}"
+        )
+
+    st.markdown("**What is stored on this machine**")
+    inv = data_inventory(store)
+    st.dataframe(pd.DataFrame(inv), use_container_width=True)
+    st.caption(f"Database file: {db_path}")
+    if st.button("🗑 Delete all local data", type="secondary"):
+        st.session_state["confirm_wipe"] = True
+    if st.session_state.get("confirm_wipe"):
+        st.warning(
+            "This permanently deletes the local database (all collected "
+            "usage data). Your GitHub token in the OS keyring is untouched."
+        )
+        c1, c2 = st.columns(2)
+        if c1.button("Yes, delete everything", type="primary"):
+            store.close()
+            try:
+                os.remove(db_path)
+                st.session_state.pop("confirm_wipe", None)
+                st.success("Local data deleted.")
+                st.rerun()
+            except OSError as exc:
+                st.error(f"Could not delete: {exc}")
+        if c2.button("Cancel"):
+            st.session_state.pop("confirm_wipe", None)
+            st.rerun()
 
 store.close()

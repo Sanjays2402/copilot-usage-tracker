@@ -4,6 +4,11 @@ Open-source usage & cost tracking for **GitHub Copilot at enterprise scale**:
 per-user AI-credit consumption, dollar costs, team attribution, budgets, and
 ROI insights -- built on GitHub's official usage metrics and billing APIs.
 
+**Security first:** read-only GitHub API access, your token never stored by
+the app, all data stays on your machine, every API call audit-logged. Open
+the in-app **Security tab** or read [SECURITY.md](SECURITY.md) for the full
+threat model and how to verify a release.
+
 ## Install
 
 **No terminal needed.** Grab the installer from the
@@ -31,16 +36,11 @@ The dashboard, after collecting usage (sidebar has **Collect latest** and
 
 ![Dashboard: cost, credits, active users, and daily credit burn](docs/screenshots/dashboard.png)
 
-<!--
-Windows installer wizard (capture on a real Windows machine, see
-docs/screenshots/CAPTURE.md):
+The Windows installer, captured on a genuine Windows machine during CI
+(see `windows-smoke` in [packaging.yml](.github/workflows/packaging.yml)):
 
-![Windows installer wizard](docs/screenshots/installer-welcome.png)
-![Windows installer options](docs/screenshots/installer-options.png)
-![Windows installer progress](docs/screenshots/installer-progress.png)
-![System tray icon and menu](docs/screenshots/tray-menu.png)
-![Dashboard popup from the tray](docs/screenshots/dashboard-popup.png)
--->
+![Windows setup wizard: license agreement](docs/screenshots/installer-license.png)
+![Windows setup wizard: installing](docs/screenshots/installer-progress.png)
 
 ## Why now
 

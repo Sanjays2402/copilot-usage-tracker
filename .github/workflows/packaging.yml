@@ -8,7 +8,10 @@
 # Optional secrets for trusted distribution:
 #   APPLE_CODESIGN_IDENTITY - "Developer ID Application: Name (TEAMID)"
 #   APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD - for notarization
-# Without them the macOS build is ad-hoc signed (Gatekeeper will warn).
+#   CODESIGN_THUMBPRINT - Windows code-signing certificate thumbprint
+#     (removes the SmartScreen "Unknown publisher" prompt)
+# Without them the macOS build is ad-hoc signed (Gatekeeper will warn)
+# and the Windows installer is unsigned (SmartScreen will warn).
 
 name: Packaging
 
@@ -19,6 +22,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write      # build-provenance attestation
+  attestations: write  # build-provenance attestation
 
 jobs:
   windows-installer:
@@ -64,10 +69,21 @@ jobs:
     needs: [windows-installer, macos-dmg]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
           path: dist
+      # SBOM: dependency list for security review of each release.
+      - name: Generate SBOM
+        run: |
+          pip install -q -e ".[desktop,dashboard]" 2>/dev/null || pip install -q -e .
+          pip freeze --exclude-editable > dist/CopilotUsageTracker.sbom.txt
+      # SLSA build provenance: proves each installer was built by this
+      # workflow from the tagged commit (verifiable with `gh attestation verify`).
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*

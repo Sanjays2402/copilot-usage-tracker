@@ -47,5 +47,22 @@ if (-not (Test-Path $Iscc)) {
 & $Iscc /DAppVersion=$Version "$PkgDir\installer.iss"
 
 $Setup = Get-ChildItem "$PkgDir\dist\CopilotUsageTracker-Setup-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+# 4. Optional code signing: removes the SmartScreen "Unknown publisher"
+# prompt. Set CODESIGN_THUMBPRINT to the thumbprint of a code-signing
+# certificate in the CurrentUser\My or LocalMachine\My store. Skipped
+# silently when unset (CI builds stay reproducible without secrets).
+if ($env:CODESIGN_THUMBPRINT) {
+    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if ($signtool) {
+        Write-Host "Signing $($Setup.Name) with certificate $($env:CODESIGN_THUMBPRINT)"
+        & $signtool.FullName sign /sha1 $env:CODESIGN_THUMBPRINT /fd SHA256 `
+            /tr http://timestamp.digicert.com /td SHA256 $Setup.FullName
+    } else {
+        Write-Warning "CODESIGN_THUMBPRINT set but signtool.exe not found; skipping signing."
+    }
+}
+
 Write-Host ""
 Write-Host "Installer ready: $($Setup.FullName)"

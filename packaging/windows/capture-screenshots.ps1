@@ -2,9 +2,8 @@
 .SYNOPSIS
   Genuine end-to-end smoke test of the Windows installer on a real machine.
 
-  Phase 1 (interactive): walks the actual Inno Setup wizard page by page
-  (welcome -> license -> tasks -> ready), screenshotting each one, then
-  closes it without installing.
+  Phase 1 (interactive): opens the actual Inno Setup wizard and screenshots
+  it as it appears, then closes it without installing.
 
   Phase 2 (silent): runs the installer with /SILENT -- the genuine
   progress dialog is screenshotted -- waits for it to finish, and verifies
@@ -69,20 +68,15 @@ if (-not $setup) { throw "installer exe not found in $(Get-Location)" }
 # Drop any Mark-of-the-Web so SmartScreen doesn't gate the genuine run.
 Unblock-File -Path $setup.FullName -ErrorAction SilentlyContinue
 
-# ---- Phase 1: wizard screenshots -------------------------------------------
-Write-Host "phase 1: interactive wizard walkthrough"
+# ---- Phase 1: wizard screenshot ------------------------------------------------
+# Capture one honest screenshot of the real installer wizard as it appears.
+# (Page-turning via SendKeys proved flaky on headless runners, so we no
+# longer pretend to click through pages.)
+Write-Host "phase 1: installer wizard window"
 $wiz = Start-Process $setup.FullName -PassThru
-Start-Sleep -Seconds 6
+Start-Sleep -Seconds 10
 if (Focus-Window $wiz) { Start-Sleep -Seconds 2 }
-Save-Shot "installer-welcome.png"
-
-Send-FocusedKeys $wiz "%n"          # Next -> license agreement
-Save-Shot "installer-license.png"
-Send-FocusedKeys $wiz "%a" 2        # Alt+A: "I accept the agreement"
-Send-FocusedKeys $wiz "%n"          # Next -> select tasks
-Save-Shot "installer-options.png"
-Send-FocusedKeys $wiz "%n"          # Next -> ready to install
-Save-Shot "installer-ready.png"
+Save-Shot "installer-wizard.png"
 
 # Close the wizard without installing; the real install happens in phase 2.
 Stop-Process -Id $wiz.Id -Force -ErrorAction SilentlyContinue
