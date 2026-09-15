@@ -58,8 +58,7 @@ def test_resolve_cached_per_process(monkeypatch):
     calls = []
     monkeypatch.setenv("GITHUB_TOKEN", "tok")
     orig = auth._from_env
-    monkeypatch.setattr(auth, "_from_env",
-                        lambda: calls.append(1) or orig())
+    monkeypatch.setattr(auth, "_from_env", lambda: calls.append(1) or orig())
     assert resolve_token()[0] == "tok"
     assert resolve_token()[0] == "tok"
     assert len(calls) == 1  # looked up once, then served from memory

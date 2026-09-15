@@ -20,33 +20,51 @@ from copilot_usage_tracker.tokens import PriceBook
 @pytest.fixture()
 def store(tmp_path):
     s = UsageStore(tmp_path / "test.db")
-    s.upsert_scope_day("2026-09-01", "acme", "enterprise",
-                       ai_credits_used=1000, active_users=2)
-    s.upsert_scope_day("2026-09-02", "acme", "enterprise",
-                       ai_credits_used=500, active_users=1)
-    s.upsert_user_day("2026-09-01", "acme", 1, user_login="alice",
-                      ai_credits_used=900, interactions=10, loc_added=50)
-    s.upsert_user_day("2026-09-01", "acme", 2, user_login="bob",
-                      ai_credits_used=100, interactions=5, loc_added=10)
-    s.upsert_team_day("2026-09-01", "acme", 42, slug="frontend",
-                      ai_credits_used=900, active_users=1)
-    s.upsert_team_day("2026-09-01", "acme", 43, slug="backend",
-                      ai_credits_used=100, active_users=1)
-    s.upsert_model_day("2026-09-01", "acme", "claude-sonnet-4.5",
-                       user_login="alice", input_tokens=1_200_000,
-                       output_tokens=300_000, cache_read_tokens=50_000,
-                       gross_amount_usd=18.50, net_amount_usd=8.50)
-    s.upsert_model_day("2026-09-01", "acme", "gpt-5-mini",
-                       user_login="bob", input_tokens=800_000,
-                       output_tokens=200_000,
-                       gross_amount_usd=12.00, net_amount_usd=0.00)
+    s.upsert_scope_day("2026-09-01", "acme", "enterprise", ai_credits_used=1000, active_users=2)
+    s.upsert_scope_day("2026-09-02", "acme", "enterprise", ai_credits_used=500, active_users=1)
+    s.upsert_user_day(
+        "2026-09-01",
+        "acme",
+        1,
+        user_login="alice",
+        ai_credits_used=900,
+        interactions=10,
+        loc_added=50,
+    )
+    s.upsert_user_day(
+        "2026-09-01", "acme", 2, user_login="bob", ai_credits_used=100, interactions=5, loc_added=10
+    )
+    s.upsert_team_day(
+        "2026-09-01", "acme", 42, slug="frontend", ai_credits_used=900, active_users=1
+    )
+    s.upsert_team_day("2026-09-01", "acme", 43, slug="backend", ai_credits_used=100, active_users=1)
+    s.upsert_model_day(
+        "2026-09-01",
+        "acme",
+        "claude-sonnet-4.5",
+        user_login="alice",
+        input_tokens=1_200_000,
+        output_tokens=300_000,
+        cache_read_tokens=50_000,
+        gross_amount_usd=18.50,
+        net_amount_usd=8.50,
+    )
+    s.upsert_model_day(
+        "2026-09-01",
+        "acme",
+        "gpt-5-mini",
+        user_login="bob",
+        input_tokens=800_000,
+        output_tokens=200_000,
+        gross_amount_usd=12.00,
+        net_amount_usd=0.00,
+    )
     yield s
     s.close()
 
 
 def test_monthly_kpis(store):
-    kpis = monthly_kpis(store, "2026-09", "acme",
-                        PriceBook.for_plan("business"), seats=10)
+    kpis = monthly_kpis(store, "2026-09", "acme", PriceBook.for_plan("business"), seats=10)
     assert kpis["credits_used"] == 1500
     assert kpis["credits_usd"] == 15.00
     assert kpis["seat_cost_usd"] == 190.00

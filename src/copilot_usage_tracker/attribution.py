@@ -18,9 +18,7 @@ Caveats (from GitHub's docs):
 from __future__ import annotations
 
 
-def attribute_to_teams(
-    user_rows: list[dict], team_rows: list[dict]
-) -> list[dict]:
+def attribute_to_teams(user_rows: list[dict], team_rows: list[dict]) -> list[dict]:
     """Aggregate per-user usage rows into per-team rows.
 
     Returns one dict per (team_id, day) with summed counters and a

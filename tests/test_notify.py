@@ -65,13 +65,14 @@ def test_notify_budget_alerts(monkeypatch):
     def fake_send(url, text, timeout=10.0):
         sent.append((url, text))
         from copilot_usage_tracker.notify import DeliveryResult
+
         return DeliveryResult(ok=True, status=200)
 
-    monkeypatch.setattr(
-        "copilot_usage_tracker.notify.send_webhook", fake_send)
+    monkeypatch.setattr("copilot_usage_tracker.notify.send_webhook", fake_send)
     alerts = [
-        BudgetAlert(scope="acme", status="warning", spent_usd=850.0,
-                    limit_usd=1000.0, utilization=0.85),
+        BudgetAlert(
+            scope="acme", status="warning", spent_usd=850.0, limit_usd=1000.0, utilization=0.85
+        ),
     ]
     results = notify_budget_alerts("https://hooks.example/x", alerts)
     assert len(results) == 1 and results[0].ok

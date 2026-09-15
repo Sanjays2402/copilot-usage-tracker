@@ -68,12 +68,14 @@ def test_scope_prefers_enterprise(isolated_home):
 
 
 def test_new_fields_roundtrip(isolated_home):
-    save_app_config(AppConfig(
-        org="acme",
-        webhook_url="https://hooks.example/x",
-        auto_collect_hours=12.0,
-        budget_limit_usd=2500.0,
-    ))
+    save_app_config(
+        AppConfig(
+            org="acme",
+            webhook_url="https://hooks.example/x",
+            auto_collect_hours=12.0,
+            budget_limit_usd=2500.0,
+        )
+    )
     cfg = load_app_config()
     assert cfg.webhook_url == "https://hooks.example/x"
     assert cfg.auto_collect_hours == 12.0

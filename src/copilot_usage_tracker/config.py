@@ -28,13 +28,10 @@ class Settings:
     # Excluded from repr so the token can't leak into tracebacks/logs.
     github_token: str = field(default="", repr=False)
     token_source: str = field(default="")  # env | keyring | gh | prompt
-    enterprise: str = field(
-        default_factory=lambda: _env_or_cfg("COPILOT_ENTERPRISE", "enterprise")
-    )
+    enterprise: str = field(default_factory=lambda: _env_or_cfg("COPILOT_ENTERPRISE", "enterprise"))
     org: str = field(default_factory=lambda: _env_or_cfg("COPILOT_ORG", "org"))
     db_path: str = field(
-        default_factory=lambda: os.environ.get("COPILOT_DB")
-        or appconfig.default_db_path()
+        default_factory=lambda: os.environ.get("COPILOT_DB") or appconfig.default_db_path()
     )
     api_base: str = field(
         default_factory=lambda: _env_or_cfg(

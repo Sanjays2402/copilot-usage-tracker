@@ -6,13 +6,17 @@ trivially testable and the Streamlit app stays a thin presentation layer.
 
 from __future__ import annotations
 
+from .budgets import Budget, check_budgets
 from .store import UsageStore
 from .tokens import PriceBook, credits_to_usd
 
 
 def monthly_kpis(
-    store: UsageStore, month: str, scope: str | None,
-    book: PriceBook, seats: int,
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    book: PriceBook,
+    seats: int,
 ) -> dict:
     """Headline numbers for a month: credits, dollars, utilization."""
     credits = store.monthly_credits(month, scope)
@@ -91,8 +95,11 @@ def model_breakdown(store: UsageStore, month: str, scope: str | None) -> list[di
 
 
 def forecast_month_end(
-    store: UsageStore, month: str, scope: str | None,
-    book: PriceBook, seats: int,
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    book: PriceBook,
+    seats: int,
 ) -> dict:
     """Project month-end credits and cost from the daily run rate.
 
@@ -123,9 +130,7 @@ def forecast_month_end(
     }
 
 
-def engagement_summary(
-    store: UsageStore, month: str, scope: str | None
-) -> dict:
+def engagement_summary(store: UsageStore, month: str, scope: str | None) -> dict:
     """How much value users get: interactions, lines added, engagement rate."""
     totals = store.engagement_totals(month, scope)
     active = store.monthly_active_users(month, scope)
@@ -141,15 +146,11 @@ def engagement_summary(
         "interactions_per_engaged_user": (
             round(totals["interactions"] / engaged, 1) if engaged else 0.0
         ),
-        "loc_per_engaged_user": (
-            round(totals["loc_added"] / engaged, 1) if engaged else 0.0
-        ),
+        "loc_per_engaged_user": (round(totals["loc_added"] / engaged, 1) if engaged else 0.0),
     }
 
 
-def engagement_daily_series(
-    store: UsageStore, month: str, scope: str | None
-) -> list[dict]:
+def engagement_daily_series(store: UsageStore, month: str, scope: str | None) -> list[dict]:
     """Per-day engagement rows for charts."""
     return [
         {
@@ -164,8 +165,11 @@ def engagement_daily_series(
 
 
 def dormant_seats(
-    store: UsageStore, days: int, scope: str | None,
-    book: PriceBook, today: str | None = None,
+    store: UsageStore,
+    days: int,
+    scope: str | None,
+    book: PriceBook,
+    today: str | None = None,
 ) -> dict:
     """Seats that show no Copilot usage in the trailing `days` days.
 
@@ -188,3 +192,209 @@ def dormant_seats(
             for r in users
         ],
     }
+
+
+def spike_alerts(
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    min_history_days: int = 7,
+    factor: float = 3.0,
+    min_credits: float = 50.0,
+) -> list[dict]:
+    """Flag users whose latest day's credits dwarf their recent history.
+
+    A user qualifies when they have at least ``min_history_days`` daily rows
+    in the month, their latest day's credits are at least ``min_credits``,
+    and that day is >= ``factor`` times their trailing mean. The trailing
+    mean is computed over the days *before* the latest day (so a spike day
+    does not inflate its own baseline). Users are sorted by spike multiple,
+    largest first.
+    """
+    q = "FROM user_daily WHERE day LIKE ?"
+    args: list = [f"{month}%"]
+    if scope:
+        q += " AND scope = ?"
+        args.append(scope)
+    rows = store.conn.execute(
+        f"SELECT user_login, day, SUM(ai_credits_used) AS credits {q} "
+        "GROUP BY user_login, day ORDER BY user_login, day",
+        args,
+    ).fetchall()
+    per_user: dict[str, list[tuple[str, float]]] = {}
+    for r in rows:
+        per_user.setdefault(r["user_login"], []).append((r["day"], float(r["credits"])))
+    alerts = []
+    for login, days in per_user.items():
+        if len(days) < min_history_days:
+            continue
+        latest_day, latest_credits = days[-1]
+        if latest_credits < min_credits:
+            continue
+        history = [c for _, c in days[:-1]]
+        trailing_avg = sum(history) / len(history)
+        if trailing_avg > 0:
+            multiple = latest_credits / trailing_avg
+        else:
+            # No prior usage: any qualifying latest day is an infinite spike.
+            multiple = float("inf") if latest_credits > 0 else 0.0
+        if latest_credits >= factor * trailing_avg:
+            alerts.append(
+                {
+                    "user": login,
+                    "latest_day": latest_day,
+                    "latest_credits": round(latest_credits, 2),
+                    "trailing_avg": round(trailing_avg, 2),
+                    "multiple": (round(multiple, 2) if multiple != float("inf") else multiple),
+                }
+            )
+    alerts.sort(key=lambda a: a["multiple"], reverse=True)
+    return alerts
+
+
+def _previous_month(month: str) -> str:
+    """Calendar month before ``month`` ("YYYY-MM"), handling year rollover."""
+    year, mon = (int(p) for p in month.split("-", 1))
+    if mon == 1:
+        return f"{year - 1}-12"
+    return f"{year}-{mon - 1:02d}"
+
+
+def _month_kpis_for_mom(
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    book: PriceBook,
+    seats: int,
+) -> dict:
+    credits = store.monthly_credits(month, scope)
+    return {
+        "credits": round(credits, 2),
+        "total_cost": book.monthly_cost(seats, credits)["total_cost_usd"],
+        "active_users": store.monthly_active_users(month, scope),
+    }
+
+
+def month_over_month(
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    book: PriceBook,
+    seats: int,
+) -> dict:
+    """Compare a month's KPIs against the previous calendar month.
+
+    Months with no data are treated as zeros. Returns one
+    ``{"current", "previous", "delta"}`` entry each for credits, total
+    cost (via the PriceBook), and active users.
+    """
+    prev = _previous_month(month)
+    current = _month_kpis_for_mom(store, month, scope, book, seats)
+    previous = _month_kpis_for_mom(store, prev, scope, book, seats)
+    out: dict = {"month": month, "previous_month": prev}
+    for key in ("credits", "total_cost", "active_users"):
+        out[key] = {
+            "current": current[key],
+            "previous": previous[key],
+            "delta": round(current[key] - previous[key], 2),
+        }
+    return out
+
+
+def executive_summary(
+    store: UsageStore,
+    month: str,
+    scope: str | None,
+    book: PriceBook,
+    seats: int,
+    budget_limit_usd: float | None = None,
+    today: str | None = None,
+) -> str:
+    """Render a leadership-ready Markdown report for the month.
+
+    Reuses the same helpers as the dashboard (KPIs, forecast, dormant
+    seats, budgets) so the numbers here always match the GUI.
+    """
+    kpis = monthly_kpis(store, month, scope, book, seats)
+    forecast = forecast_month_end(store, month, scope, book, seats)
+    teams = team_leaderboard(store, month, scope)[:5]
+    users = top_users_with_cost(store, month, scope, limit=5)
+    seats_info = dormant_seats(store, 30, scope, book, today=today)
+
+    lines = [
+        f"# Copilot usage — executive summary ({month})",
+        "",
+        f"Scope: {scope or 'all'} · Plan: {book.plan} · Granted seats: {seats}",
+        "",
+        "## KPIs",
+        "",
+        f"- Credits used: {kpis['credits_used']:,.0f}",
+        f"- Total cost: ${kpis['total_cost_usd']:,.2f}",
+        f"- Active users: {kpis['active_users']:,}",
+        f"- Allowance utilization: {kpis['utilization']:.1%}",
+        "",
+        "## Cost forecast",
+        "",
+        f"- Daily run rate: {forecast['daily_run_rate']:,.0f} credits/day",
+        f"- Projected month-end credits: {forecast['projected_credits']:,.0f}",
+        f"- Projected month-end cost: ${forecast['projected_total_usd']:,.2f}",
+        (
+            f"- Projected overage: ${forecast['projected_overage_usd']:,.2f} "
+            f"(data coverage: {forecast['days_elapsed']}/"
+            f"{forecast['days_in_month']} days)"
+        ),
+        "",
+        "## Top teams",
+        "",
+    ]
+    if teams:
+        for i, t in enumerate(teams, 1):
+            lines.append(
+                f"{i}. {t['team']} — {t['credits']:,.0f} credits "
+                f"(${t['usd']:,.2f}, {t['active_users']} users)"
+            )
+    else:
+        lines.append("- No team data for this month.")
+    lines += ["", "## Top users", ""]
+    if users:
+        for i, u in enumerate(users, 1):
+            lines.append(f"{i}. {u['user']} — {u['credits']:,.0f} credits (${u['usd']:,.2f})")
+    else:
+        lines.append("- No user data for this month.")
+    lines += [
+        "",
+        "## Dormant seats",
+        "",
+        f"- Dormant seats (no usage in 30 days): {seats_info['dormant_count']:,}",
+        (
+            "- Potential monthly savings from reclamation: "
+            f"${seats_info['potential_monthly_savings_usd']:,.2f}"
+        ),
+        "",
+        "## Budget status",
+        "",
+    ]
+    if budget_limit_usd and budget_limit_usd > 0:
+        budget = Budget(
+            scope=scope or "all", limit_usd=budget_limit_usd, spent_usd=kpis["total_cost_usd"]
+        )
+        alerts = check_budgets([budget])
+        lines.append(
+            f"- Spent ${budget.spent_usd:,.2f} of "
+            f"${budget.limit_usd:,.2f} ({budget.utilization:.0%} of budget)."
+        )
+        if alerts:
+            lines.append(f"- Status: {alerts[0].status.upper()} — {alerts[0].message}")
+        else:
+            lines.append("- Status: within budget.")
+    else:
+        lines.append("- No monthly budget configured.")
+    lines += [
+        "",
+        (
+            "_Generated locally by copilot-usage-tracker; figures are derived "
+            "from collected GitHub Copilot usage data._"
+        ),
+        "",
+    ]
+    return "\n".join(lines)

@@ -1,13 +1,94 @@
 # copilot-usage-tracker
 
-Open-source usage & cost tracking for **GitHub Copilot at enterprise scale**:
-per-user AI-credit consumption, dollar costs, team attribution, budgets, and
-ROI insights -- built on GitHub's official usage metrics and billing APIs.
+Usage & cost tracking for **GitHub Copilot at enterprise scale**, built for
+engineering leaders and FinOps: per-user AI-credit consumption, dollar costs,
+month-over-month trends, unusual-activity alerts, team attribution, budgets,
+and one-click executive summaries — on top of GitHub's official usage
+metrics and billing APIs.
 
-**Security first:** read-only GitHub API access, your token never stored by
-the app, all data stays on your machine, every API call audit-logged. Open
-the in-app **Security tab** or read [SECURITY.md](SECURITY.md) for the full
-threat model and how to verify a release.
+## Screenshots
+
+First-run setup — everything happens in the app window, no terminal:
+
+![First-run setup: enter your org or enterprise and a GitHub token](docs/screenshots/setup.png)
+
+The Overview tab: month-over-month KPI deltas, the unusual-activity watch
+list, and month-end forecast:
+
+![Dashboard overview: KPI deltas, unusual activity, forecast](docs/screenshots/dashboard.png)
+
+The Users tab: top consumers plus a per-user drill-down with daily credit
+and interaction charts:
+
+![Users tab: per-user drill-down](docs/screenshots/users-drilldown.png)
+
+The Windows installer:
+
+![Windows setup wizard: license agreement](docs/screenshots/installer-license.png)
+![Windows setup wizard: installing](docs/screenshots/installer-progress.png)
+
+*Provenance: the setup and installer shots were captured on a genuine
+Windows machine during CI. The dashboard shots render fictional demo data
+(`docs/screenshots/seed_demo.py`) in a headless browser — no real user
+data.*
+
+## Why now
+
+On **June 1, 2026**, GitHub replaced flat per-seat Copilot billing with
+**usage-based billing in AI Credits** (1 credit = $0.01), metered on the
+tokens each model actually processes. Then on **September 1, 2026**, the
+promotional allowance window ended and included credits dropped sharply
+overnight — Business seats went from 3,000 to 1,900 credits/month,
+Enterprise from 7,000 to 3,900 — with no change to seat prices.
+
+Enterprises went from "we pay $19/$39 a seat" to "we have a variable,
+per-token cloud bill with no native chargeback." This project is the
+FinOps layer GitHub doesn't ship: track it, attribute it, budget it.
+
+## What it does
+
+- **Per-user credit tracking** — pulls the daily per-user usage reports
+  (`ai_credits_used` per user, per day) into a local time series.
+- **Real input/output token counts** — the AI usage report export gives
+  per-user, per-day, per-model `input`, `output`, `cache_read`,
+  `cache_write` tokens with dollar amounts (the only server-side
+  token-level source GitHub exposes).
+- **Real dollars, not guesses** — 1 AI credit = $0.01, plus exact per-model
+  billing figures from GitHub's AI-credit billing API
+  (gross / allowance-covered / net-billed).
+- **Month-over-month KPI deltas** — the Overview tab shows total cost,
+  credits used, active users, and allowance utilization with signed
+  deltas against the previous month, so trends are visible at a glance.
+- **Unusual-activity alerts** — flags users whose latest day's credits are
+  at least 3× their trailing daily average, worth a quick look for
+  runaway agents or shared accounts.
+- **User drill-down** — pick any user on the Users tab for their daily
+  credit burn and interaction charts, plus month totals.
+- **Executive summary export** — one click downloads a Markdown brief of
+  the month (KPIs, deltas, top consumers, forecast) for sharing with
+  finance or leadership.
+- **Team attribution** — implements GitHub's documented user-teams join so
+  every credit can be charged back (or shown back) to a team. Honors the
+  5-seat reporting threshold and multi-team double-counting rules.
+- **Budgets & chat alerts** — monthly budgets with warn/breach thresholds;
+  paste a Slack/Teams incoming-webhook URL in Settings and alerts are
+  delivered to chat automatically after every collection (test button
+  included).
+- **Seat optimization** — the Seats tab lists dormant seats (no usage in
+  30 days) with reclaimable dollars per month, downloadable as CSV.
+- **Engagement analytics** — Copilot interactions, lines of code added,
+  engaged-user rate, and per-day trends on the Engagement tab.
+- **Month-end forecasting** — the Overview tab projects month-end credits
+  and cost from the daily run rate, so the allowance never surprises
+  finance.
+- **Background auto-collection** — the tray app refreshes data on a
+  schedule (every 6 hours by default, adjustable in Settings); the
+  dashboard is always fresh with zero clicks.
+- **Audit log viewer** — every GitHub API call the app makes, inspectable
+  in the dashboard for compliance reviews (auth headers never logged).
+- **Model analytics** — per-model and per-feature breakdowns show which
+  models and surfaces (chat, agent mode, code review, CLI) burn the credit
+  pool fastest.
 
 ## Install
 
@@ -20,159 +101,84 @@ in your OS keyring, never in a file), and click **Collect latest**. That's
 it — no PowerShell, no commands.
 
 The app lives in the system tray (Windows) or menu bar (macOS); click the
-icon to pop up the dashboard. See [packaging/](packaging/) for build,
-signing, and notarization details.
+icon to pop up the dashboard. The dashboard sidebar has **Collect latest**
+and **Settings**, so day-to-day use never leaves the GUI. See
+[packaging/](packaging/) for build, signing, and notarization details.
 
-**From source (developers):**
-
-## Screenshots
-
-First-run setup — everything happens in the app, no terminal required:
-
-![First-run setup: enter your org or enterprise and a GitHub token](docs/screenshots/setup.png)
-
-The dashboard, after collecting usage (sidebar has **Collect latest** and
-**Settings**, so day-to-day use never leaves the GUI):
-
-![Dashboard: cost, credits, active users, and daily credit burn](docs/screenshots/dashboard.png)
-
-The Windows installer, captured on a genuine Windows machine during CI
-(see `windows-smoke` in [packaging.yml](.github/workflows/packaging.yml)):
-
-![Windows setup wizard: license agreement](docs/screenshots/installer-license.png)
-![Windows setup wizard: installing](docs/screenshots/installer-progress.png)
-
-## Why now
-
-On **June 1, 2026**, GitHub replaced flat per-seat Copilot billing with
-**usage-based billing in AI Credits** (1 credit = $0.01), metered on the
-tokens each model actually processes. Then on **September 1, 2026**, the
-promotional allowance window ended and included credits dropped 37-44%
-overnight -- Business seats went from 3,000 to 1,900 credits/month,
-Enterprise from 7,000 to 3,900 -- with no change to seat prices.
-
-Enterprises went from "we pay $19/$39 a seat" to "we have a variable,
-per-token cloud bill with no native chargeback." This project is the
-FinOps layer GitHub doesn't ship: track it, attribute it, budget it.
-
-## What it does
-
-- **Per-user credit tracking** -- pulls the daily per-user usage reports
-  (`ai_credits_used` per user, per day) into a local time series.
-- **Real input/output token counts** -- the AI usage report export gives
-  per-user, per-day, per-model `input`, `output`, `cache_read`,
-  `cache_write` tokens with dollar amounts (the only server-side
-  token-level source GitHub exposes).
-- **Real dollars, not guesses** -- 1 AI credit = $0.01, plus exact per-model
-  billing figures from GitHub's AI-credit billing API
-  (gross / allowance-covered / net-billed).
-- **Team attribution** -- implements GitHub's documented user-teams join so
-  every credit can be charged back (or shown back) to a team. Honors the
-  5-seat reporting threshold and multi-team double-counting rules.
-- **Budgets & chat alerts** -- monthly budgets with warn/breach thresholds;
-  paste a Slack/Teams incoming-webhook URL in Settings and alerts are
-  delivered to chat automatically after every collection (test button
-  included).
-- **Seat optimization** -- the Seats tab lists dormant seats (no usage in
-  30 days) with reclaimable dollars per month, downloadable as CSV.
-- **Engagement analytics** -- Copilot interactions, lines of code added,
-  engaged-user rate, and per-day trends on the Engagement tab.
-- **Month-end forecasting** -- the Overview tab projects month-end credits
-  and cost from the daily run rate, so the allowance never surprises
-  finance.
-- **Background auto-collection** -- the tray app refreshes data on a
-  schedule (every 6 hours by default, adjustable in Settings); the
-  dashboard is always fresh with zero clicks.
-- **Audit log viewer** -- every GitHub API call the app makes, inspectable
-  in the dashboard for compliance reviews (auth headers never logged).
-- **Model analytics** -- per-model and per-feature breakdowns show which
-  models and surfaces (chat, agent mode, code review, CLI) burn the credit
-  pool fastest.
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next (warehouse sinks,
-anomaly detection, ROI module).
-
-## Quickstart
-
-```bash
-pip install -e "."
-
-export COPILOT_ENTERPRISE="acme"       # or COPILOT_ORG="acme-corp"
-
-# Authenticate (token resolved from env, OS keyring, gh CLI, or a hidden
-# prompt; the tool itself never stores it anywhere)
-copilot-usage login
-
-# Collect yesterday's usage (add --with-teams for team rollups)
-copilot-usage collect --day 2026-09-08 --with-teams
-
-# Pull per-model input/output token data (AI usage report export)
-copilot-usage export-tokens --year 2026 --month 9
-
-# Dollar-cost report for the month
-copilot-usage report --month 2026-09 --plan business --seats 250 --overage
-
-# Exact billing items straight from GitHub (enterprise scope)
-copilot-usage billing --year 2026 --month 9
-
-# Check a team budget
-copilot-usage budget-check --limit 500 --spent 420 --scope team:platform
-
-# What-if estimate
-copilot-usage estimate --credits 45000 --seats 250 --plan business --overage
-```
-
-Required token permissions: enterprise/org owner, billing manager, or a
-custom role with **View Enterprise Copilot Metrics**. The tool is strictly
-read-only against GitHub -- it never writes to your org.
-
-## Dashboard
+## From source (developers)
 
 ```bash
 pip install -e ".[dashboard]"
+export COPILOT_ORG="acme-corp"   # or COPILOT_ENTERPRISE="acme"
 streamlit run dashboard/app.py
 ```
 
-Five tabs over the collected data: **Overview** (cost, credits, active
-users, allowance utilization, daily burn), **Teams** (chargeback
-leaderboard), **Users** (top consumers with dollar costs), **Models &
-Tokens** (per-model input/output/cache tokens and spend), and **Budgets**
-(monthly budget vs. actual with warn/breach alerts). Configure the database
-path, scope, month, plan, seats, and overage policy in the sidebar.
+The CLI (`copilot-usage collect`, `report`, `billing`, `budget-check`,
+`estimate`, …) documents itself via `copilot-usage --help`. The token is
+resolved from `GITHUB_TOKEN`, the OS keyring, the `gh` CLI, or a hidden
+prompt — the tool never stores it anywhere.
 
-## Desktop app (system tray)
+Required token permissions: enterprise/org owner, billing manager, or a
+custom role with **View Enterprise Copilot Metrics**. The tool is strictly
+read-only against GitHub — it never writes to your org.
 
-Prefer a native app over a browser tab? Install the desktop extra and run:
+## Security
 
-```bash
-pip install -e ".[desktop]"
-copilot-usage tray
-```
+Built so a security review can say yes:
 
-The tracker then lives in the taskbar's hidden icons (Windows) or the menu
-bar (macOS). On first launch it pops the setup window automatically: pick
-your organization or enterprise, paste a GitHub token, and you're done —
-no terminal at any point. Clicking the icon pops the dashboard up in a
-native window; closing the window hides it without quitting. The
-right-click menu offers **Collect latest data**, **Open in browser**, and
-**Quit**. The dashboard sidebar mirrors the same controls (**Collect
-latest**, **Settings** to change scope). See `tray/README.md` for
-run-at-login setup and PyInstaller packaging.
+- **Read-only GitHub access** — the app only calls reporting and billing
+  endpoints; it cannot modify your org in any way.
+- **Your token is never stored by the app** — resolved once per process
+  from the environment, OS keyring, `gh` CLI, or a hidden prompt, and
+  never written to disk by the tool.
+- **Local-first** — usage data lives in SQLite on your machine; the only
+  network calls are to your GitHub API endpoint. No third-party
+  telemetry.
+- **Auditable** — every API call is appended to an `audit.jsonl` trail
+  (auth headers never logged), viewable in the dashboard's Audit tab.
+- **Enterprise adaptable** — `policy.yaml` enforces scope allowlists,
+  aggregate-only mode (no per-user rows), salted user pseudonymization,
+  retention with auto-purge, plus corporate proxy/CA and GitHub
+  Enterprise Server support.
 
-## Enterprise & compliance
+Full threat model and verification steps: [SECURITY.md](SECURITY.md).
+Enterprise deployment guide: [docs/ENTERPRISE.md](docs/ENTERPRISE.md).
 
-Built so a security review can say yes: read-only against GitHub,
-local-first (SQLite on your machine, no third-party telemetry), least-
-privilege tokens, an `audit.jsonl` trail of every API call, and a
-`policy.yaml` that adapts the tool to company rules — scope allowlists,
-aggregate-only mode (no per-user rows), user pseudonymization, retention
-with auto-purge, corporate proxy/CA support, and GitHub Enterprise Server.
+## FAQ
 
-```bash
-copilot-usage init-policy --preset strict   # standard | strict | aggregate
-```
+**Where does the data come from?**
+GitHub's report APIs (daily per-user `ai_credits_used` NDJSON), the
+AI-credit billing API (exact gross / allowance-covered / net-billed
+dollars), and the AI usage report CSV export (per-user, per-day, per-model
+tokens with dollar amounts — the only server-side token-level source).
+See [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md).
 
-Full guide: [`docs/ENTERPRISE.md`](docs/ENTERPRISE.md).
+**Does it work with GitHub Enterprise Server?**
+Yes — point the app at your GHES hostname; corporate proxies and custom
+CAs are supported via `policy.yaml`. See
+[docs/ENTERPRISE.md](docs/ENTERPRISE.md).
+
+**What GitHub permissions does the token need?**
+Enterprise/org owner, billing manager, or a custom role with **View
+Enterprise Copilot Metrics**. Access is strictly read-only.
+
+**How are dollar costs calculated?**
+1 AI credit = $0.01. Seat cost = seats × plan price; pooled allowance =
+seats × included credits; usage beyond the pool is billed as overage when
+enabled. All figures live in `PriceBook` and can be calibrated to your
+GitHub agreement, and the billing API provides exact billed amounts for
+reconciliation.
+
+**What counts as a dormant seat?**
+A seat with no recorded usage in the last 30 days. The Seats tab lists
+them with reclaimable dollars per month and a CSV download for license
+reviews.
+
+**Where is my data stored?**
+In a SQLite file on your own machine (path configurable in Settings).
+The GitHub token lives in your OS keyring if you put it there — the app
+itself never persists it. API calls are logged to a local append-only
+`audit.jsonl`.
 
 ## How it works
 
@@ -194,12 +200,12 @@ Data sources & billing facts: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)
 
 Inline completions and next-edit suggestions are free and unmetered; chat,
 agent mode, code review, and the CLI draw from the credit pool. All figures
-are configurable in `PriceBook` -- calibrate to your GitHub agreement.
+are configurable in `PriceBook` — calibrate to your GitHub agreement.
 
 ## Contributing
 
 Issues and PRs welcome. The test suite is `pytest`; lint is `ruff`.
-Please don't commit real usage exports -- NDJSON reports contain user
+Please don't commit real usage exports — NDJSON reports contain user
 activity data.
 
 ## License

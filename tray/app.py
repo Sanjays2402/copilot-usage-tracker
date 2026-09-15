@@ -136,16 +136,29 @@ class TrayApp:
         with open(server_log, "a", encoding="utf-8") as log_fh:
             self.server = subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT, env=env)
         # Popen dup'ed the handle for the child; closing ours is safe.
-        wait_for_port(self.port, timeout=150)
-        _flog(f"dashboard server up on 127.0.0.1:{self.port}")
-        # TCP-accept is not serving: wait for Streamlit's own readiness
-        # signal so the milestone means a browser can actually load the page.
-        wait_for_http_ok(self.port, timeout=150)
+        try:
+            wait_for_port(self.port, timeout=150)
+            _flog(f"dashboard server up on 127.0.0.1:{self.port}")
+            # TCP-accept is not serving: wait for Streamlit's own readiness
+            # signal so the milestone means a browser can actually load the page.
+            wait_for_http_ok(self.port, timeout=150)
+        except Exception:
+            # The server never became ready: kill it before giving up, or it
+            # lingers on the port as an orphaned Streamlit process.
+            _flog("dashboard server failed to become ready; terminating it")
+            self.stop_server()
+            raise
         _flog(f"dashboard serving HTTP on 127.0.0.1:{self.port}")
 
     def stop_server(self) -> None:
-        if self.server is not None and self.server.poll() is None:
-            self.server.terminate()
+        proc = self.server
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except Exception:  # noqa: BLE001 - hung child: escalate to kill
+                with contextlib.suppress(Exception):
+                    proc.kill()
 
     # -- popup window ---------------------------------------------------
     def _ensure_window(self):

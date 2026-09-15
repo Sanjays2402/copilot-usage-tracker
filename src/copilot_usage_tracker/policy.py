@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 import yaml
@@ -81,9 +81,7 @@ class Policy:
         policy.yaml or COPILOT_USER_SALT or pseudonyms will churn between runs.
         """
         if not self.privacy.user_salt:
-            self.privacy.user_salt = (
-                os.environ.get("COPILOT_USER_SALT") or secrets.token_hex(16)
-            )
+            self.privacy.user_salt = os.environ.get("COPILOT_USER_SALT") or secrets.token_hex(16)
         return self.privacy.user_salt
 
     def scope_allowed(self, scope: str) -> bool:
@@ -97,31 +95,43 @@ PRESETS: dict = {
         "collection": {"allowed_scopes": [], "collect_per_user": True},
         "network": {"proxy": "", "ca_bundle": "", "api_base": ""},
         "privacy": {
-            "anonymize_users": False, "user_salt": "", "retention_days": 365,
+            "anonymize_users": False,
+            "user_salt": "",
+            "retention_days": 365,
             "drop_raw_json": False,
         },
-        "audit": {"enabled": True,
-                  "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl")},
+        "audit": {
+            "enabled": True,
+            "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl"),
+        },
     },
     "strict": {
         "collection": {"allowed_scopes": [], "collect_per_user": True},
         "network": {"proxy": "", "ca_bundle": "", "api_base": ""},
         "privacy": {
-            "anonymize_users": True, "user_salt": "", "retention_days": 90,
+            "anonymize_users": True,
+            "user_salt": "",
+            "retention_days": 90,
             "drop_raw_json": True,
         },
-        "audit": {"enabled": True,
-                  "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl")},
+        "audit": {
+            "enabled": True,
+            "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl"),
+        },
     },
     "aggregate": {
         "collection": {"allowed_scopes": [], "collect_per_user": False},
         "network": {"proxy": "", "ca_bundle": "", "api_base": ""},
         "privacy": {
-            "anonymize_users": False, "user_salt": "", "retention_days": 180,
+            "anonymize_users": False,
+            "user_salt": "",
+            "retention_days": 180,
             "drop_raw_json": True,
         },
-        "audit": {"enabled": True,
-                  "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl")},
+        "audit": {
+            "enabled": True,
+            "path": str(Path.home() / ".copilot-usage-tracker" / "audit.jsonl"),
+        },
     },
 }
 
@@ -133,9 +143,7 @@ PRESET_DESCRIPTIONS = {
 
 
 def default_policy_path() -> Path:
-    return Path(
-        os.environ.get("COPILOT_POLICY_FILE") or _app_default_policy()
-    ).expanduser()
+    return Path(os.environ.get("COPILOT_POLICY_FILE") or _app_default_policy()).expanduser()
 
 
 def _app_default_policy() -> str:
@@ -158,6 +166,9 @@ def _merge(base: dict, override: dict) -> dict:
 
 def _apply_env_overrides(data: dict) -> dict:
     data = _merge(data, {})
+    for name in ("collection", "network", "privacy", "audit"):
+        if not isinstance(data.get(name), dict):
+            data[name] = {}
     collection, network, privacy, audit = (
         data.setdefault("collection", {}),
         data.setdefault("network", {}),
@@ -195,11 +206,20 @@ def _apply_env_overrides(data: dict) -> dict:
 
 
 def _dict_to_policy(data: dict) -> Policy:
+    # Be liberal with hand-edited policy.yaml: a typo'd key or a section
+    # that isn't a mapping must not crash the whole tool with a TypeError.
+    def section(name: str, cls):
+        raw = data.get(name, {})
+        if not isinstance(raw, dict):
+            raw = {}
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in raw.items() if k in known})
+
     return Policy(
-        collection=CollectionPolicy(**data.get("collection", {})),
-        network=NetworkPolicy(**data.get("network", {})),
-        privacy=PrivacyPolicy(**data.get("privacy", {})),
-        audit=AuditPolicy(**data.get("audit", {})),
+        collection=section("collection", CollectionPolicy),
+        network=section("network", NetworkPolicy),
+        privacy=section("privacy", PrivacyPolicy),
+        audit=section("audit", AuditPolicy),
     )
 
 
@@ -210,6 +230,9 @@ def load_policy(path: str | Path | None = None) -> Policy:
     if policy_path.is_file():
         with policy_path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        # e.g. a YAML list or scalar -- not a policy mapping; use defaults
+        data = {}
     return _dict_to_policy(_apply_env_overrides(data))
 
 

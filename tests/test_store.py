@@ -24,8 +24,7 @@ def store(tmp_path):
 
 def test_purge_older_than_removes_old_only(store):
     counts = store.purge_older_than(30)
-    assert counts == {"user_daily": 1, "scope_daily": 1,
-                      "team_daily": 1, "model_daily": 1}
+    assert counts == {"user_daily": 1, "scope_daily": 1, "team_daily": 1, "model_daily": 1}
     # recent rows survive
     assert store.monthly_credits("2099-01") == 20
     assert store.monthly_credits("2020-01") == 0
@@ -47,12 +46,21 @@ def test_purge_zero_days_keeps_nothing_old():
 
 def _engagement_store(tmp_path):
     s = UsageStore(tmp_path / "eng.db")
-    s.upsert_user_day("2026-09-01", "acme", 1, user_login="alice",
-                      ai_credits_used=900, interactions=10, loc_added=50)
-    s.upsert_user_day("2026-09-01", "acme", 2, user_login="bob",
-                      ai_credits_used=100, interactions=5, loc_added=10)
-    s.upsert_user_day("2026-09-02", "acme", 1, user_login="alice",
-                      ai_credits_used=0, interactions=0, loc_added=0)
+    s.upsert_user_day(
+        "2026-09-01",
+        "acme",
+        1,
+        user_login="alice",
+        ai_credits_used=900,
+        interactions=10,
+        loc_added=50,
+    )
+    s.upsert_user_day(
+        "2026-09-01", "acme", 2, user_login="bob", ai_credits_used=100, interactions=5, loc_added=10
+    )
+    s.upsert_user_day(
+        "2026-09-02", "acme", 1, user_login="alice", ai_credits_used=0, interactions=0, loc_added=0
+    )
     return s
 
 

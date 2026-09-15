@@ -13,8 +13,12 @@ from copilot_usage_tracker.policy import (
 
 def test_load_policy_defaults_no_file(tmp_path, monkeypatch):
     monkeypatch.setenv("COPILOT_POLICY_FILE", str(tmp_path / "nonexistent.yaml"))
-    for var in ("COPILOT_ANONYMIZE_USERS", "COPILOT_RETENTION_DAYS",
-                "COPILOT_ALLOWED_SCOPES", "COPILOT_API_BASE"):
+    for var in (
+        "COPILOT_ANONYMIZE_USERS",
+        "COPILOT_RETENTION_DAYS",
+        "COPILOT_ALLOWED_SCOPES",
+        "COPILOT_API_BASE",
+    ):
         monkeypatch.delenv(var, raising=False)
     policy = load_policy()
     assert policy.collection.collect_per_user is True
@@ -26,11 +30,19 @@ def test_load_policy_defaults_no_file(tmp_path, monkeypatch):
 
 def test_load_policy_from_file(tmp_path, monkeypatch):
     path = tmp_path / "policy.yaml"
-    path.write_text(yaml.safe_dump({
-        "collection": {"allowed_scopes": ["acme"], "collect_per_user": False},
-        "privacy": {"anonymize_users": True, "user_salt": "s3cr3t",
-                    "retention_days": 90, "drop_raw_json": True},
-    }))
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "collection": {"allowed_scopes": ["acme"], "collect_per_user": False},
+                "privacy": {
+                    "anonymize_users": True,
+                    "user_salt": "s3cr3t",
+                    "retention_days": 90,
+                    "drop_raw_json": True,
+                },
+            }
+        )
+    )
     monkeypatch.setenv("COPILOT_POLICY_FILE", str(path))
     policy = load_policy()
     assert policy.scope_allowed("acme") is True
@@ -64,8 +76,7 @@ def test_write_preset_strict(tmp_path):
     assert len(data["privacy"]["user_salt"]) >= 16  # fresh salt generated
     # salts differ per generation
     out2 = write_preset("strict", tmp_path / "policy2.yaml")
-    assert yaml.safe_load(out2.read_text())["privacy"]["user_salt"] != \
-        data["privacy"]["user_salt"]
+    assert yaml.safe_load(out2.read_text())["privacy"]["user_salt"] != data["privacy"]["user_salt"]
 
 
 def test_write_preset_aggregate(tmp_path):
@@ -81,6 +92,7 @@ def test_write_preset_unknown(tmp_path):
 
 def test_presets_all_documented():
     from copilot_usage_tracker.policy import PRESET_DESCRIPTIONS
+
     assert set(PRESETS) == set(PRESET_DESCRIPTIONS)
 
 
@@ -90,8 +102,7 @@ def test_apply_to_session():
     from copilot_usage_tracker.policy import NetworkPolicy, Policy
 
     session = requests.Session()
-    policy = Policy(network=NetworkPolicy(proxy="http://proxy:8080",
-                                          ca_bundle="/tmp/ca.pem"))
+    policy = Policy(network=NetworkPolicy(proxy="http://proxy:8080", ca_bundle="/tmp/ca.pem"))
     apply_to_session(session, policy)
     assert session.proxies["https"] == "http://proxy:8080"
     assert session.verify == "/tmp/ca.pem"

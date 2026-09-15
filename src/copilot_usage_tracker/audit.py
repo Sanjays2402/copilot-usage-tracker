@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlparse
@@ -39,9 +40,7 @@ class AuditLogger:
                 "method": method.upper(),
                 "host": parts.netloc,
                 "path": parts.path,
-                "params": {
-                    k: v for k, v in parse_qsl(parts.query) if k in SAFE_PARAMS
-                },
+                "params": {k: v for k, v in parse_qsl(parts.query) if k in SAFE_PARAMS},
                 "status": status,
             }
             if note:
@@ -56,8 +55,7 @@ class AuditMixin:
 
     audit: AuditLogger | None = None
 
-    def _audit(self, method: str, url: str, status: int | None = None,
-               note: str = "") -> None:
+    def _audit(self, method: str, url: str, status: int | None = None, note: str = "") -> None:
         if self.audit is not None:
             self.audit.log(method, url, status, note)
 
@@ -67,16 +65,19 @@ def read_audit_log(path: str | Path | None, limit: int = 200) -> list[dict]:
 
     Corrupt lines are skipped; a missing file yields an empty list. Safe
     to call from the dashboard -- never raises for I/O problems.
+
+    Only the newest ``limit`` lines are ever held in memory, so a large
+    enterprise audit log doesn't get fully loaded for a 200-row preview.
     """
-    if not path:
+    if not path or limit <= 0:
         return []
     try:
         with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
+            lines = deque(f, maxlen=limit)
     except OSError:
         return []
     records = []
-    for line in lines[-limit:]:
+    for line in lines:
         line = line.strip()
         if not line:
             continue

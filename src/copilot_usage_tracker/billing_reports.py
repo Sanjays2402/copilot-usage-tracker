@@ -48,18 +48,26 @@ class BillingReportsClient(AuditMixin):
             }
         )
         self._base = (
-            f"{settings.api_base}/enterprises/{settings.enterprise}"
-            "/settings/billing/reports"
+            f"{settings.api_base}/enterprises/{settings.enterprise}/settings/billing/reports"
         )
 
     def create_report(self, payload: dict) -> str:
         """Request a report; returns the report id."""
         resp = self.session.post(self._base, json=payload, timeout=60)
-        self._audit("POST", self._base, resp.status_code,
-                    note=f"billing report request: {payload.get('type')}")
+        self._audit(
+            "POST",
+            self._base,
+            resp.status_code,
+            note=f"billing report request: {payload.get('type')}",
+        )
         resp.raise_for_status()
         data = resp.json()
-        return data.get("id") or data.get("report_id")
+        report_id = data.get("id") or data.get("report_id")
+        if not report_id:
+            # Fail loudly here: returning None would surface later as a
+            # confusing 404 on ".../billing/reports/None".
+            raise ValueError("billing report request returned no report id")
+        return report_id
 
     def report_status(self, report_id: str) -> dict:
         url = f"{self._base}/{report_id}"

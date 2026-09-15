@@ -36,9 +36,12 @@ from copilot_usage_tracker.insights import (
     dormant_seats,
     engagement_daily_series,
     engagement_summary,
+    executive_summary,
     forecast_month_end,
     model_breakdown,
+    month_over_month,
     monthly_kpis,
+    spike_alerts,
     team_leaderboard,
     top_users_with_cost,
 )
@@ -58,8 +61,7 @@ def _setup_page() -> None:
     """First-run onboarding: scope + token, no terminal required."""
     st.title("Welcome to Copilot Usage Tracker")
     st.write(
-        "Connect your GitHub enterprise or organization once. "
-        "Everything stays on this machine."
+        "Connect your GitHub enterprise or organization once. Everything stays on this machine."
     )
     cfg = appconfig.load_app_config()
 
@@ -97,9 +99,7 @@ def _setup_page() -> None:
         value=False,
     )
 
-    remember = st.checkbox(
-        "Remember the token on this machine (OS keyring)", value=True
-    )
+    remember = st.checkbox("Remember the token on this machine (OS keyring)", value=True)
     if st.button("Save & connect", type="primary"):
         if not slug:
             st.error("Enter your organization login or enterprise slug.")
@@ -155,8 +155,7 @@ def _maybe_notify(cfg, spent_usd: float) -> None:
     """Push budget alerts to the configured chat webhook, if any."""
     if not cfg.webhook_url:
         return
-    budget = Budget(scope="all", limit_usd=cfg.budget_limit_usd,
-                    spent_usd=spent_usd)
+    budget = Budget(scope="all", limit_usd=cfg.budget_limit_usd, spent_usd=spent_usd)
     alerts = check_budgets([budget])
     if not alerts:
         return
@@ -197,16 +196,21 @@ if st.sidebar.button("🔄 Collect latest", use_container_width=True):
     st.rerun()
 with st.sidebar.expander("Settings"):
     new_kind = st.radio(
-        "Scope type", ["Organization", "Enterprise"],
-        index=1 if _cfg.enterprise else 0, horizontal=True,
+        "Scope type",
+        ["Organization", "Enterprise"],
+        index=1 if _cfg.enterprise else 0,
+        horizontal=True,
     )
     new_slug = st.text_input(
-        "Slug", value=_cfg.enterprise or _cfg.org,
+        "Slug",
+        value=_cfg.enterprise or _cfg.org,
     ).strip()
     new_teams = st.checkbox("Build per-team rollups", value=_cfg.with_teams)
     new_hours = st.number_input(
         "Auto-collect every N hours (0 = off)",
-        min_value=0.0, value=float(_cfg.auto_collect_hours), step=1.0,
+        min_value=0.0,
+        value=float(_cfg.auto_collect_hours),
+        step=1.0,
     )
     new_webhook = st.text_input(
         "Chat webhook URL (Slack/Teams) for budget alerts",
@@ -249,6 +253,35 @@ forecast = forecast_month_end(store, month, scope, book, seats)
 engagement = engagement_summary(store, month, scope)
 engagement_daily = engagement_daily_series(store, month, scope)
 seats_report = dormant_seats(store, 30, scope, book)
+mom = month_over_month(store, month, scope, book, seats)
+spikes = spike_alerts(store, month, scope)
+summary_md = executive_summary(
+    store,
+    month,
+    scope,
+    book,
+    seats,
+    budget_limit_usd=_cfg.budget_limit_usd,
+)
+
+
+def _delta_credits(v: float) -> str:
+    return f"{v:+,.0f} credits"
+
+
+def _delta_usd(v: float) -> str:
+    sign = "+" if v >= 0 else "-"
+    return f"{sign}${abs(v):,.2f}"
+
+
+def _delta_users(v: int) -> str:
+    noun = "user" if abs(v) == 1 else "users"
+    return f"{v:+,} {noun}"
+
+
+def _delta_utilization(v: float) -> str:
+    return f"{v:+.1f}pp"
+
 
 if st.session_state.pop("just_collected", False):
     _maybe_notify(_cfg, kpis["total_cost_usd"])
@@ -264,8 +297,28 @@ st.sidebar.caption(
     "GitHub API endpoint. No third-party telemetry."
 )
 
-tab_overview, tab_engage, tab_teams, tab_users, tab_seats, tab_models, tab_budgets, tab_audit, tab_security = st.tabs(
-    ["Overview", "Engagement", "Teams", "Users", "Seats", "Models & Tokens", "Budgets", "Audit", "Security"]
+(
+    tab_overview,
+    tab_engage,
+    tab_teams,
+    tab_users,
+    tab_seats,
+    tab_models,
+    tab_budgets,
+    tab_audit,
+    tab_security,
+) = st.tabs(
+    [
+        "Overview",
+        "Engagement",
+        "Teams",
+        "Users",
+        "Seats",
+        "Models & Tokens",
+        "Budgets",
+        "Audit",
+        "Security",
+    ]
 )
 
 # Audit records feed both the Audit tab and the Security tab's network proof.
@@ -274,22 +327,61 @@ if not audit_path:
     try:
         audit_path = load_policy().audit.path
     except Exception:  # noqa: BLE001 - policy optional
-        audit_path = os.path.expanduser(
-            "~/.copilot-usage-tracker/audit.jsonl")
+        audit_path = os.path.expanduser("~/.copilot-usage-tracker/audit.jsonl")
 audit_records = read_audit_log(audit_path, limit=500)
 api_base = _cfg.api_base
 
 with tab_overview:
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total cost", f"${kpis['total_cost_usd']:,.2f}")
-    c2.metric("Credits used", f"{kpis['credits_used']:,.0f}")
-    c3.metric("Active users", f"{kpis['active_users']:,}")
-    c4.metric("Allowance utilization", f"{kpis['utilization']:.1%}")
+    c1.metric(
+        "Total cost",
+        f"${kpis['total_cost_usd']:,.2f}",
+        delta=_delta_usd(mom["total_cost"]["delta"]),
+    )
+    c2.metric(
+        "Credits used",
+        f"{kpis['credits_used']:,.0f}",
+        delta=_delta_credits(mom["credits"]["delta"]),
+    )
+    c3.metric(
+        "Active users",
+        f"{kpis['active_users']:,}",
+        delta=_delta_users(mom["active_users"]["delta"]),
+    )
+    allowance = book.pooled_allowance(seats)
+    util_delta = mom["credits"]["delta"] / allowance * 100 if allowance else 0.0
+    c4.metric(
+        "Allowance utilization", f"{kpis['utilization']:.1%}", delta=_delta_utilization(util_delta)
+    )
+    st.download_button(
+        "📝 Download summary (Markdown)",
+        summary_md.encode("utf-8"),
+        file_name=f"copilot-summary-{month}.md",
+        mime="text/markdown",
+    )
     c1, c2, c3 = st.columns(3)
     c1.metric("Seat cost", f"${kpis['seat_cost_usd']:,.2f}")
     c2.metric("Overage cost", f"${kpis['overage_cost_usd']:,.2f}")
-    c3.metric("Input / Output tokens",
-              f"{kpis['input_tokens']:,} / {kpis['output_tokens']:,}")
+    c3.metric("Input / Output tokens", f"{kpis['input_tokens']:,} / {kpis['output_tokens']:,}")
+    if spikes:
+        st.subheader("Unusual activity")
+        st.write(
+            "Users whose latest day's credits are at least 3× their "
+            "trailing daily average — worth a quick look for runaway "
+            "agents or shared accounts."
+        )
+        df = pd.DataFrame(
+            [
+                {
+                    "User": a["user"],
+                    "Latest day": a["latest_day"],
+                    "Credits vs avg": (f"{a['latest_credits']:,.0f} vs {a['trailing_avg']:,.0f}"),
+                    "Multiple": f"{a['multiple']:.1f}×",
+                }
+                for a in spikes
+            ]
+        )
+        st.dataframe(df, use_container_width=True)
     st.subheader("Month-end forecast")
     f1, f2, f3, f4 = st.columns(4)
     f1.metric("Projected cost", f"${forecast['projected_total_usd']:,.2f}")
@@ -312,14 +404,11 @@ with tab_engage:
     e1, e2, e3, e4 = st.columns(4)
     e1.metric("Copilot interactions", f"{engagement['interactions']:,}")
     e2.metric("Lines of code added", f"{engagement['loc_added']:,}")
-    e3.metric("Engaged users",
-              f"{engagement['engaged_users']:,} / {engagement['active_users']:,}")
+    e3.metric("Engaged users", f"{engagement['engaged_users']:,} / {engagement['active_users']:,}")
     e4.metric("Engagement rate", f"{engagement['engagement_rate']:.1%}")
     e1, e2 = st.columns(2)
-    e1.metric("Interactions / engaged user",
-              f"{engagement['interactions_per_engaged_user']:,}")
-    e2.metric("Lines added / engaged user",
-              f"{engagement['loc_per_engaged_user']:,}")
+    e1.metric("Interactions / engaged user", f"{engagement['interactions_per_engaged_user']:,}")
+    e2.metric("Lines added / engaged user", f"{engagement['loc_per_engaged_user']:,}")
     if engagement_daily:
         df = pd.DataFrame(engagement_daily)
         st.subheader("Daily interactions")
@@ -347,6 +436,18 @@ with tab_users:
     if users:
         df = pd.DataFrame(users)
         st.dataframe(df, use_container_width=True)
+        st.subheader("User drill-down")
+        logins = [u["user"] for u in users]
+        picked = st.selectbox("User", logins, index=0, help="Defaults to the top credit consumer.")
+        series = store.user_daily_series(picked, month, scope)
+        sdf = pd.DataFrame(series).set_index("day")
+        u1, u2 = st.columns(2)
+        u1.metric("Total credits", f"{sdf['credits'].sum():,.0f}")
+        u2.metric("Total interactions", f"{sdf['interactions'].sum():,}")
+        st.bar_chart(sdf["credits"])
+        st.caption("Daily credits")
+        st.line_chart(sdf["interactions"])
+        st.caption("Daily interactions")
         st.download_button(
             "⬇ Download users CSV",
             df.to_csv(index=False).encode("utf-8"),
@@ -387,8 +488,16 @@ with tab_models:
         st.bar_chart(df.set_index("model")[["input_tokens", "output_tokens"]])
         st.subheader("Cost by model")
         st.dataframe(
-            df[["model", "input_tokens", "output_tokens",
-                "cache_read_tokens", "gross_usd", "net_usd"]],
+            df[
+                [
+                    "model",
+                    "input_tokens",
+                    "output_tokens",
+                    "cache_read_tokens",
+                    "gross_usd",
+                    "net_usd",
+                ]
+            ],
             use_container_width=True,
         )
         st.download_button(
@@ -406,16 +515,18 @@ with tab_models:
 
 with tab_budgets:
     limit = st.number_input(
-        "Monthly budget (USD)", min_value=0.0,
-        value=float(_cfg.budget_limit_usd), step=50.0,
+        "Monthly budget (USD)",
+        min_value=0.0,
+        value=float(_cfg.budget_limit_usd),
+        step=50.0,
     )
     if limit != _cfg.budget_limit_usd:
         _cfg.budget_limit_usd = limit
         appconfig.save_app_config(_cfg)
-    budget = Budget(scope=scope or "all", limit_usd=limit,
-                    spent_usd=kpis["total_cost_usd"])
-    st.progress(min(budget.utilization, 1.0),
-                text=f"${budget.spent_usd:,.2f} of ${budget.limit_usd:,.2f}")
+    budget = Budget(scope=scope or "all", limit_usd=limit, spent_usd=kpis["total_cost_usd"])
+    st.progress(
+        min(budget.utilization, 1.0), text=f"${budget.spent_usd:,.2f} of ${budget.limit_usd:,.2f}"
+    )
     alerts = check_budgets([budget])
     if alerts:
         for a in alerts:
@@ -442,8 +553,10 @@ with tab_budgets:
             else:
                 st.error("Some deliveries failed — check the webhook URL in Settings.")
     else:
-        st.info("Add a Slack/Teams incoming-webhook URL in Settings (sidebar) "
-                "to get budget alerts in chat.")
+        st.info(
+            "Add a Slack/Teams incoming-webhook URL in Settings (sidebar) "
+            "to get budget alerts in chat."
+        )
 
 with tab_audit:
     st.subheader("API audit log")
@@ -454,16 +567,18 @@ with tab_audit:
     )
     records = audit_records
     if records:
-        df = pd.DataFrame([
-            {
-                "time": r.get("ts", ""),
-                "method": r.get("method", ""),
-                "host": r.get("host", ""),
-                "path": r.get("path", ""),
-                "status": r.get("status", ""),
-            }
-            for r in records
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "time": r.get("ts", ""),
+                    "method": r.get("method", ""),
+                    "host": r.get("host", ""),
+                    "path": r.get("path", ""),
+                    "status": r.get("status", ""),
+                }
+                for r in records
+            ]
+        )
         st.dataframe(df, use_container_width=True)
         st.caption(f"Showing {len(records)} most recent entries from {audit_path}")
     else:
@@ -510,8 +625,7 @@ with tab_security:
     n1, n2, n3 = st.columns(3)
     n1.metric("API requests logged", f"{net['total_requests']:,}")
     n2.metric("Non-GET requests", f"{net['non_get_requests']:,}")
-    n3.metric("Third-party hosts contacted",
-              f"{len(net['third_party_hosts']):,}")
+    n3.metric("Third-party hosts contacted", f"{len(net['third_party_hosts']):,}")
     if net["read_only"] and net["local_only"] and net["total_requests"]:
         st.success(
             "Verified from the audit log: every request was a read-only "

@@ -35,10 +35,7 @@ from .tokens import PriceBook
 
 
 def _api_base(policy) -> str:
-    return (
-        policy.network.api_base
-        or os.environ.get("COPILOT_API_BASE", "https://api.github.com")
-    )
+    return policy.network.api_base or os.environ.get("COPILOT_API_BASE", "https://api.github.com")
 
 
 def _policy_and_settings(require_token: bool = True):
@@ -68,18 +65,27 @@ def main() -> None:
     default="standard",
     help="; ".join(f"{k}: {v}" for k, v in PRESET_DESCRIPTIONS.items()),
 )
-@click.option("--output", default=str(default_policy_path()),
-              help="Where to write policy.yaml")
-def init_policy(preset: str, output: str) -> None:
+@click.option(
+    "--output",
+    default=None,
+    help="Where to write policy.yaml (default: the configured policy path)",
+)
+def init_policy(preset: str, output: str | None) -> None:
     """Write a starter enterprise policy file (adapts the tool to company rules)."""
-    path = write_preset(preset, output)
+    # Resolved here (not as an import-time default) so COPILOT_POLICY_FILE
+    # set after import is honored and importing the CLI has no side effects.
+    path = write_preset(preset, output or default_policy_path())
     click.echo(f"Wrote {path} (preset: {preset})")
     click.echo("Review it, set allowed_scopes if needed, then re-run your commands.")
 
 
 @main.command()
-@click.option("--days", type=int, default=None,
-              help="Purge rows older than N days (default: policy retention_days)")
+@click.option(
+    "--days",
+    type=int,
+    default=None,
+    help="Purge rows older than N days (default: policy retention_days)",
+)
 def purge(days: int | None) -> None:
     """Delete stored rows older than the retention window."""
     policy = load_policy()
@@ -169,7 +175,9 @@ def export_tokens(year: int, month: int, report_type: str) -> None:
 @click.option("--scope", default=None, help="Limit to one scope")
 @click.option("--plan", type=click.Choice(["business", "enterprise"]), default="business")
 @click.option("--seats", type=int, default=0, help="Granted seats for cost math")
-@click.option("--overage/--no-overage", default=False, help="Bill credits beyond the pooled allowance")
+@click.option(
+    "--overage/--no-overage", default=False, help="Bill credits beyond the pooled allowance"
+)
 def report(month: str, scope: str | None, plan: str, seats: int, overage: bool) -> None:
     """Print the dollar-cost report for a month."""
     policy = load_policy()
@@ -194,7 +202,15 @@ def billing(year: int, month: int, user: str | None) -> None:
     policy, settings, _scope, audit = _policy_and_settings()
     client = wire_client(BillingClient(settings, audit=audit), policy)
     items = client.ai_credit_usage(year, month, user=user)
-    click.echo(json.dumps(items, indent=2)[:4000])
+    # Truncate the *list*, never the JSON text: slicing the serialized text
+    # produced invalid JSON that broke scripts parsing this command's output.
+    shown = items[:100]
+    click.echo(json.dumps(shown, indent=2))
+    if len(items) > len(shown):
+        click.echo(
+            f"… showing {len(shown)} of {len(items)} items (pass --user to narrow it down)",
+            err=True,
+        )
 
 
 @main.command()
@@ -232,8 +248,9 @@ def login() -> None:
     except TokenNotFoundError:
         pass
     if shutil.which("gh"):
-        click.echo("Tip: `gh auth login` once and this tool will reuse that session "
-                   "with no new secret.")
+        click.echo(
+            "Tip: `gh auth login` once and this tool will reuse that session with no new secret."
+        )
     token = prompt_token()
     if not token:
         raise click.ClickException("No token entered.")
@@ -242,8 +259,7 @@ def login() -> None:
         login_name, scopes = validate_token(token, _api_base(policy))
     except Exception as exc:
         raise click.ClickException(f"Token validation failed: {exc}") from exc
-    click.echo(f"Token is valid for @{login_name}"
-               + (f" (scopes: {scopes})" if scopes else ""))
+    click.echo(f"Token is valid for @{login_name}" + (f" (scopes: {scopes})" if scopes else ""))
     if click.confirm(
         "Save it to your OS keyring so future runs don't ask again?",
         default=True,
@@ -257,8 +273,7 @@ def login() -> None:
             ) from exc
         click.echo("Saved to OS keyring. `copilot-usage logout` removes it.")
     else:
-        click.echo("Not saved. Set GITHUB_TOKEN in your environment "
-                   "to use it non-interactively.")
+        click.echo("Not saved. Set GITHUB_TOKEN in your environment to use it non-interactively.")
 
 
 @main.command()
@@ -282,8 +297,7 @@ def auth() -> None:
     click.echo(f"token:  {mask_token(token)}")
     try:
         login_name, scopes = validate_token(token, _api_base(load_policy()))
-        click.echo(f"valid:  yes, @{login_name}"
-                   + (f" (scopes: {scopes})" if scopes else ""))
+        click.echo(f"valid:  yes, @{login_name}" + (f" (scopes: {scopes})" if scopes else ""))
     except Exception as exc:
         raise click.ClickException(f"Token validation failed: {exc}") from exc
 
@@ -295,8 +309,7 @@ def tray() -> None:
         from tray.app import main as tray_main
     except ImportError as exc:
         raise click.ClickException(
-            f"Desktop dependencies missing ({exc}). "
-            'Install them with: pip install -e ".[desktop]"'
+            f'Desktop dependencies missing ({exc}). Install them with: pip install -e ".[desktop]"'
         ) from exc
     tray_main()
 

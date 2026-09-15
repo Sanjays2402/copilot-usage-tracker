@@ -21,8 +21,9 @@ class DeliveryResult:
     error: str = ""
 
 
-def format_alert_message(scope: str, status: str, spent_usd: float,
-                         limit_usd: float, utilization: float) -> str:
+def format_alert_message(
+    scope: str, status: str, spent_usd: float, limit_usd: float, utilization: float
+) -> str:
     """One-line human-readable alert, suitable for a chat message."""
     emoji = "🚨" if status == "breached" else "⚠️"
     return (
@@ -54,8 +55,11 @@ def notify_budget_alerts(webhook_url: str, alerts: list) -> list[DeliveryResult]
     results = []
     for alert in alerts:
         text = format_alert_message(
-            alert.scope, alert.status, alert.spent_usd,
-            alert.limit_usd, alert.utilization,
+            alert.scope,
+            alert.status,
+            alert.spent_usd,
+            alert.limit_usd,
+            alert.utilization,
         )
         results.append(send_webhook(webhook_url, text))
     return results

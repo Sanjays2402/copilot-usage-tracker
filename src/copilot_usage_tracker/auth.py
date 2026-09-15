@@ -110,9 +110,7 @@ def resolve_token() -> tuple[str, str]:
 
 def prompt_token() -> str:
     """Ask for a token interactively; input is hidden and memory-only."""
-    return getpass.getpass(
-        "GitHub token (input hidden; stored nowhere by this tool): "
-    ).strip()
+    return getpass.getpass("GitHub token (input hidden; stored nowhere by this tool): ").strip()
 
 
 def mask_token(token: str) -> str:
@@ -147,8 +145,7 @@ def delete_from_keyring() -> bool:
         reset_cache()
 
 
-def validate_token(token: str, api_base: str = "https://api.github.com"
-                   ) -> tuple[str, str]:
+def validate_token(token: str, api_base: str = "https://api.github.com") -> tuple[str, str]:
     """Check a token against GET /user; returns (login, scopes)."""
     resp = requests.get(
         f"{api_base}/user",

@@ -35,6 +35,8 @@ WRITE_SCOPES = {
     "admin:gpg_key",
     "write:gpg_key",
     "codespace",
+    "public_repo",  # read/write on public repos (write power, not read-only)
+    "gist",  # full read/write on gists
 }
 
 

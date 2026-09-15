@@ -182,18 +182,47 @@ class UsageStore:
 
     def monthly_active_users(self, year_month: str, scope: str | None = None) -> int:
         q, args = self._scoped("user_daily", year_month, scope)
-        return self.conn.execute(
-            f"SELECT COUNT(DISTINCT user_id) AS n {q}", args
-        ).fetchone()["n"]
+        return self.conn.execute(f"SELECT COUNT(DISTINCT user_id) AS n {q}", args).fetchone()["n"]
 
     def daily_series(self, year_month: str, scope: str | None = None) -> list[dict]:
         q, args = self._scoped("scope_daily", year_month, scope)
         rows = self.conn.execute(
-            f"SELECT day, SUM(ai_credits_used) AS ai_credits_used {q} "
-            "GROUP BY day ORDER BY day",
+            f"SELECT day, SUM(ai_credits_used) AS ai_credits_used {q} GROUP BY day ORDER BY day",
             args,
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def user_daily_series(
+        self, user_login: str, year_month: str, scope: str | None = None
+    ) -> list[dict]:
+        """Per-day credits and interactions for one user, zero-filled.
+
+        Returns one row per calendar day of the month (ordered by day);
+        days with no collected data report 0 credits and 0 interactions
+        so charts render continuous series.
+        """
+        import calendar
+
+        year, mon = (int(p) for p in year_month.split("-", 1))
+        days_in_month = calendar.monthrange(year, mon)[1]
+        q, args = self._scoped("user_daily", year_month, scope)
+        rows = self.conn.execute(
+            "SELECT day, COALESCE(SUM(ai_credits_used),0) AS credits, "
+            f"COALESCE(SUM(interactions),0) AS interactions {q} "
+            "AND user_login = ? GROUP BY day ORDER BY day",
+            args + [user_login],
+        ).fetchall()
+        by_day = {r["day"]: dict(r) for r in rows}
+        return [
+            {
+                "day": f"{year_month}-{d:02d}",
+                "credits": float(by_day.get(f"{year_month}-{d:02d}", {"credits": 0})["credits"]),
+                "interactions": int(
+                    by_day.get(f"{year_month}-{d:02d}", {"interactions": 0})["interactions"]
+                ),
+            }
+            for d in range(1, days_in_month + 1)
+        ]
 
     def team_totals(self, year_month: str, scope: str | None = None) -> list[dict]:
         q, args = self._scoped("team_daily", year_month, scope)
@@ -205,8 +234,7 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def top_users(self, year_month: str, limit: int = 10,
-                  scope: str | None = None) -> list[dict]:
+    def top_users(self, year_month: str, limit: int = 10, scope: str | None = None) -> list[dict]:
         q, args = self._scoped("user_daily", year_month, scope)
         rows = self.conn.execute(
             "SELECT user_login, SUM(ai_credits_used) AS credits "
@@ -215,9 +243,7 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def model_token_totals(
-        self, year_month: str, scope: str | None = None
-    ) -> dict:
+    def model_token_totals(self, year_month: str, scope: str | None = None) -> dict:
         q, args = self._scoped("model_daily", year_month, scope)
         r = self.conn.execute(
             "SELECT COALESCE(SUM(input_tokens),0) AS i, "
@@ -233,9 +259,7 @@ class UsageStore:
             "cache_write_tokens": r["cw"],
         }
 
-    def model_breakdown(
-        self, year_month: str, scope: str | None = None
-    ) -> list[dict]:
+    def model_breakdown(self, year_month: str, scope: str | None = None) -> list[dict]:
         q, args = self._scoped("model_daily", year_month, scope)
         rows = self.conn.execute(
             "SELECT model, SUM(input_tokens) AS input_tokens, "
@@ -249,9 +273,7 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def daily_engagement(
-        self, year_month: str, scope: str | None = None
-    ) -> list[dict]:
+    def daily_engagement(self, year_month: str, scope: str | None = None) -> list[dict]:
         """Per-day interactions, lines added, engaged and active users."""
         q, args = self._scoped("user_daily", year_month, scope)
         rows = self.conn.execute(
@@ -265,20 +287,15 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def monthly_engaged_users(
-        self, year_month: str, scope: str | None = None
-    ) -> int:
+    def monthly_engaged_users(self, year_month: str, scope: str | None = None) -> int:
         """Distinct users with at least one Copilot interaction in the month."""
         q, args = self._scoped("user_daily", year_month, scope)
         return self.conn.execute(
-            "SELECT COUNT(DISTINCT CASE WHEN interactions > 0 THEN user_id END) "
-            f"AS n {q}",
+            f"SELECT COUNT(DISTINCT CASE WHEN interactions > 0 THEN user_id END) AS n {q}",
             args,
         ).fetchone()["n"]
 
-    def engagement_totals(
-        self, year_month: str, scope: str | None = None
-    ) -> dict:
+    def engagement_totals(self, year_month: str, scope: str | None = None) -> dict:
         q, args = self._scoped("user_daily", year_month, scope)
         r = self.conn.execute(
             "SELECT COALESCE(SUM(interactions),0) AS interactions, "
@@ -288,7 +305,9 @@ class UsageStore:
         return {"interactions": r["interactions"], "loc_added": r["loc_added"]}
 
     def dormant_users(
-        self, days: int = 30, scope: str | None = None,
+        self,
+        days: int = 30,
+        scope: str | None = None,
         today: str | None = None,
     ) -> list[dict]:
         """Users with no credit usage in the trailing `days` days.
@@ -298,9 +317,7 @@ class UsageStore:
         """
         if today is None:
             today = datetime.now(timezone.utc).date().isoformat()
-        cutoff = (
-            datetime.fromisoformat(today).date() - timedelta(days=days)
-        ).isoformat()
+        cutoff = (datetime.fromisoformat(today).date() - timedelta(days=days)).isoformat()
         q = "FROM user_daily WHERE 1 = 1"
         args: list = []
         if scope:
@@ -318,14 +335,10 @@ class UsageStore:
 
     def purge_older_than(self, days: int) -> dict:
         """Delete rows older than `days` (cutoff in UTC); returns per-table counts."""
-        cutoff = (
-            datetime.now(timezone.utc).date() - timedelta(days=days)
-        ).isoformat()
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
         counts = {}
         for table in ("user_daily", "scope_daily", "team_daily", "model_daily"):
-            cur = self.conn.execute(
-                f"DELETE FROM {table} WHERE day < ?", (cutoff,)
-            )
+            cur = self.conn.execute(f"DELETE FROM {table} WHERE day < ?", (cutoff,))
             counts[table] = cur.rowcount
         self.conn.commit()
         return counts
