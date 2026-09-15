@@ -171,14 +171,32 @@ def _maybe_notify(cfg, spent_usd: float) -> None:
         )
 
 
+THEMES = {
+    "Quiet Ledger": "ledger",
+    "OLED Black": "oled",
+    "Slate": "slate",
+}
+
+
 def _inject_theme() -> None:
-    """Load the premium dashboard theme (dashboard/theme.css)."""
-    css_path = os.path.join(os.path.dirname(__file__), "theme.css")
+    """Load the dashboard theme: base component CSS + selected palette."""
     try:
-        with open(css_path, encoding="utf-8") as fh:
-            st.markdown(f"<style>{fh.read()}</style>", unsafe_allow_html=True)
-    except OSError:
-        pass
+        name = appconfig.load_app_config().theme
+    except Exception:  # noqa: BLE001 - config optional
+        name = "ledger"
+    if name not in THEMES.values():
+        name = "ledger"
+    base_path = os.path.join(os.path.dirname(__file__), "themes", "base.css")
+    theme_path = os.path.join(os.path.dirname(__file__), "themes", f"{name}.css")
+    css = ""
+    for path in (base_path, theme_path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                css += fh.read() + "\n"
+        except OSError:
+            pass
+    if css:
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
 _inject_theme()
@@ -199,10 +217,24 @@ plan = st.sidebar.selectbox("Plan", ["business", "enterprise"])
 seats = st.sidebar.number_input("Granted seats", min_value=0, value=0, step=10)
 overage = st.sidebar.checkbox("Bill overage beyond pooled allowance", value=False)
 scope = scope or None
+_cfg = appconfig.load_app_config()
+
+st.sidebar.subheader("Appearance")
+_theme_labels = list(THEMES)
+_current_theme = _cfg.theme if _cfg.theme in THEMES.values() else "ledger"
+_theme_label = st.sidebar.selectbox(
+    "Theme",
+    _theme_labels,
+    index=list(THEMES.values()).index(_current_theme),
+    label_visibility="collapsed",
+)
+if THEMES[_theme_label] != _cfg.theme:
+    _cfg.theme = THEMES[_theme_label]
+    appconfig.save_app_config(_cfg)
+    st.rerun()
 
 st.sidebar.divider()
 st.sidebar.subheader("Data")
-_cfg = appconfig.load_app_config()
 if st.sidebar.button("🔄 Collect latest", use_container_width=True):
     if _collect_latest(_cfg) is not None:
         st.session_state["just_collected"] = True

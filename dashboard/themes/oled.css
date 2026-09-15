@@ -1,0 +1,34 @@
+/* OLED Black — true-black dark theme. Pure #000 canvas, hairline graphite
+   rules, bright ink. Easy on OLED panels and on eyes at night. */
+:root {
+  --cut-paper: #000000;
+  --cut-card: #0b0b0c;
+  --cut-ink: #f4f4f2;
+  --cut-ink-soft: #c9ccd1;
+  --cut-muted: #8e939e;
+  --cut-faint: #5c616b;
+  --cut-line: #1e1e22;
+  --cut-line-soft: #141416;
+  --cut-accent: #6b94ff;
+  --cut-accent-deep: #8fadff;
+  --cut-accent-wash: rgba(107, 148, 255, 0.14);
+  --cut-good: #4ade80;
+  --cut-good-bg: rgba(74, 222, 128, 0.13);
+  --cut-bad: #f87171;
+  --cut-bad-bg: rgba(248, 113, 113, 0.13);
+  --cut-warn: #fbbf24;
+  --cut-warn-bg: rgba(251, 191, 36, 0.12);
+  --cut-neutral-bg: #17171a;
+  --cut-btn-bg: #f4f4f2;
+  --cut-btn-text: #000000;
+  --cut-btn-hover: #d7d7d3;
+  --cut-info-border: #2a3350;
+  --cut-good-border: #1d3a2a;
+  --cut-warn-border: #453312;
+  --cut-bad-border: #4a2220;
+  --cut-radius: 10px;
+  --cut-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cut-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
+    monospace;
+}

@@ -61,6 +61,7 @@ class AppConfig:
     webhook_url: str = ""  # Slack/Teams incoming webhook for budget alerts
     auto_collect_hours: float = 6.0  # tray background collection interval; 0 = off
     budget_limit_usd: float = 1000.0
+    theme: str = "ledger"  # dashboard theme: ledger | oled | slate
 
     def scope(self) -> str:
         return self.enterprise or self.org
@@ -85,6 +86,7 @@ def load_app_config() -> AppConfig:
         "webhook_url",
         "auto_collect_hours",
         "budget_limit_usd",
+        "theme",
     ):
         if key in data and data[key] is not None:
             setattr(cfg, key, data[key])

@@ -1,0 +1,34 @@
+/* Slate — soft dark theme. Graphite canvas for rooms where true black
+   feels too stark. */
+:root {
+  --cut-paper: #131518;
+  --cut-card: #1b1e24;
+  --cut-ink: #edeef0;
+  --cut-ink-soft: #c3c7ce;
+  --cut-muted: #8b9099;
+  --cut-faint: #5f646d;
+  --cut-line: #262a32;
+  --cut-line-soft: #1d2026;
+  --cut-accent: #5b8def;
+  --cut-accent-deep: #7fa8f5;
+  --cut-accent-wash: rgba(91, 141, 239, 0.13);
+  --cut-good: #3ecf7a;
+  --cut-good-bg: rgba(62, 207, 122, 0.12);
+  --cut-bad: #f26d5f;
+  --cut-bad-bg: rgba(242, 109, 95, 0.12);
+  --cut-warn: #e8a33d;
+  --cut-warn-bg: rgba(232, 163, 61, 0.12);
+  --cut-neutral-bg: #22262d;
+  --cut-btn-bg: #edeef0;
+  --cut-btn-text: #131518;
+  --cut-btn-hover: #d3d6db;
+  --cut-info-border: #2b3550;
+  --cut-good-border: #1e3a2b;
+  --cut-warn-border: #453a17;
+  --cut-bad-border: #472622;
+  --cut-radius: 10px;
+  --cut-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cut-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
+    monospace;
+}

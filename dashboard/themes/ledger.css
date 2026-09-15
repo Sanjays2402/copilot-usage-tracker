@@ -1,0 +1,33 @@
+/* Quiet Ledger — light editorial theme. */
+:root {
+  --cut-paper: #fafaf8;
+  --cut-card: #ffffff;
+  --cut-ink: #16181d;
+  --cut-ink-soft: #3f434c;
+  --cut-muted: #6e7480;
+  --cut-faint: #a6acb8;
+  --cut-line: #e9e6e0;
+  --cut-line-soft: #f2f0eb;
+  --cut-accent: #2e5bff;
+  --cut-accent-deep: #1e40d8;
+  --cut-accent-wash: #eef2ff;
+  --cut-good: #178a4c;
+  --cut-good-bg: #e7f4ec;
+  --cut-bad: #d92d20;
+  --cut-bad-bg: #fcedea;
+  --cut-warn: #b54708;
+  --cut-warn-bg: #fdf3e3;
+  --cut-neutral-bg: #f1f0eb;
+  --cut-btn-bg: #16181d;
+  --cut-btn-text: #ffffff;
+  --cut-btn-hover: #2b2e36;
+  --cut-info-border: #dbe4ff;
+  --cut-good-border: #cde9d8;
+  --cut-warn-border: #f3dfba;
+  --cut-bad-border: #f5c9c4;
+  --cut-radius: 10px;
+  --cut-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cut-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
+    monospace;
+}
