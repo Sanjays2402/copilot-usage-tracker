@@ -170,6 +170,18 @@ def _maybe_notify(cfg, spent_usd: float) -> None:
         )
 
 
+def _inject_theme() -> None:
+    """Load the premium dashboard theme (dashboard/theme.css)."""
+    css_path = os.path.join(os.path.dirname(__file__), "theme.css")
+    try:
+        with open(css_path, encoding="utf-8") as fh:
+            st.markdown(f"<style>{fh.read()}</style>", unsafe_allow_html=True)
+    except OSError:
+        pass
+
+
+_inject_theme()
+
 if not appconfig.is_configured():
     _setup_page()
     st.stop()

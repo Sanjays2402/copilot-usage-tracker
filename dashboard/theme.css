@@ -1,0 +1,318 @@
+/* Copilot Usage Tracker — premium dashboard theme.
+   Injected by dashboard/app.py. Targets Streamlit 1.63 data-testid hooks. */
+
+:root {
+  --cut-ink: #16233b;
+  --cut-body: #3c4a63;
+  --cut-muted: #75809a;
+  --cut-faint: #a7b0c4;
+  --cut-paper: #f3f4f6;
+  --cut-card: #ffffff;
+  --cut-line: #e3e7ee;
+  --cut-accent: #0f766e;
+  --cut-accent-deep: #0c5f59;
+  --cut-accent-soft: #e3f2f0;
+  --cut-sidebar: #101b31;
+  --cut-sidebar-2: #16263f;
+  --cut-sidebar-text: #dbe2ee;
+  --cut-sidebar-muted: #8f9bb3;
+  --cut-radius: 12px;
+  --cut-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --cut-font: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* -- app frame ------------------------------------------------------- */
+.stApp {
+  background: var(--cut-paper);
+  font-family: var(--cut-font);
+  -webkit-font-smoothing: antialiased;
+  color: var(--cut-body);
+}
+
+section[data-testid="stMain"] .block-container {
+  max-width: 1180px;
+  padding-top: 2.2rem;
+  padding-bottom: 4rem;
+}
+
+/* thin brand rule across the top of the content area */
+section[data-testid="stMain"]::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: var(--cut-accent);
+  border-radius: 0 0 3px 3px;
+  margin: 0 0 0.4rem 0;
+}
+
+/* -- page header ----------------------------------------------------- */
+section[data-testid="stMain"] h1 {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--cut-ink);
+  padding-top: 0.6rem;
+}
+
+section[data-testid="stMain"] h1::before {
+  content: "COPILOT USAGE TRACKER";
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--cut-accent);
+  margin-bottom: 7px;
+}
+
+section[data-testid="stMain"] [data-testid="stCaptionContainer"] {
+  margin-top: 2px;
+}
+
+section[data-testid="stMain"] [data-testid="stCaptionContainer"] p {
+  display: inline-block;
+  background: var(--cut-card);
+  border: 1px solid var(--cut-line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  color: var(--cut-muted);
+  box-shadow: var(--cut-shadow);
+}
+
+/* -- section headings ------------------------------------------------ */
+section[data-testid="stMain"] h2 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cut-ink);
+  margin-top: 1.9rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--cut-line);
+}
+
+section[data-testid="stMain"] h3 {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--cut-ink);
+  margin-top: 1.4rem;
+}
+
+/* -- KPI cards -------------------------------------------------------- */
+div[data-testid="stMetric"] {
+  background: var(--cut-card);
+  border: 1px solid var(--cut-line);
+  border-radius: var(--cut-radius);
+  padding: 16px 18px 14px;
+  box-shadow: var(--cut-shadow);
+}
+
+div[data-testid="stMetricLabel"] p,
+div[data-testid="stMetricLabel"] label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cut-muted);
+}
+
+div[data-testid="stMetricValue"] {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cut-ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+div[data-testid="stMetricDelta"] {
+  margin-top: 4px;
+}
+
+/* delta pill */
+div[data-testid="stMetricDelta"] > div {
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--cut-accent-soft);
+}
+
+/* -- tabs ------------------------------------------------------------- */
+div[data-testid="stTab"] p {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cut-muted);
+  padding: 2px 4px;
+}
+
+div[data-testid="stTab"][aria-selected="true"] {
+  border-bottom: 2px solid var(--cut-accent);
+}
+
+div[data-testid="stTab"][aria-selected="true"] p {
+  color: var(--cut-ink);
+}
+
+div[data-testid="stTabs"] {
+  border-bottom: 1px solid var(--cut-line);
+}
+
+/* -- data tables ------------------------------------------------------- */
+div[data-testid="stDataFrame"] {
+  border: 1px solid var(--cut-line);
+  border-radius: var(--cut-radius);
+  overflow: hidden;
+  box-shadow: var(--cut-shadow);
+  background: var(--cut-card);
+}
+
+/* -- charts sit on cards ---------------------------------------------- */
+div[data-testid="stVegaLiteChart"],
+div[data-testid="stAltairChart"] {
+  background: var(--cut-card);
+  border: 1px solid var(--cut-line);
+  border-radius: var(--cut-radius);
+  padding: 14px 12px 6px;
+  box-shadow: var(--cut-shadow);
+}
+
+/* -- buttons ------------------------------------------------------------ */
+button[kind="primary"] {
+  background: var(--cut-accent);
+  border: none;
+  border-radius: 9px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(12, 95, 89, 0.25);
+}
+
+button[kind="primary"]:hover {
+  background: var(--cut-accent-deep);
+}
+
+button[kind="secondary"] {
+  border-radius: 9px;
+  font-weight: 600;
+  border: 1px solid var(--cut-line);
+  color: var(--cut-ink);
+  background: var(--cut-card);
+}
+
+button[kind="secondary"]:hover {
+  border-color: var(--cut-accent);
+  color: var(--cut-accent-deep);
+}
+
+/* -- alerts -------------------------------------------------------------- */
+div[data-testid="stAlert"] {
+  border-radius: 10px;
+  border: 1px solid var(--cut-line);
+  font-size: 13.5px;
+}
+
+/* -- sidebar -------------------------------------------------------------- */
+section[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, var(--cut-sidebar) 0%, var(--cut-sidebar-2) 100%);
+}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+  color: #f1f5fb;
+  border-bottom-color: rgba(255, 255, 255, 0.09);
+}
+
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span {
+  color: var(--cut-sidebar-text);
+}
+
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--cut-sidebar-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+section[data-testid="stSidebar"] hr {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+/* sidebar inputs: dark fields, light menus */
+section[data-testid="stSidebar"] [data-testid="stTextInput"] input,
+section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #f1f5fb;
+}
+
+section[data-testid="stSidebar"] [data-testid="stTextInput"] input:focus,
+section[data-testid="stSidebar"] [data-testid="stNumberInput"] input:focus {
+  border-color: var(--cut-accent);
+  box-shadow: 0 0 0 1px var(--cut-accent);
+}
+
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] > div {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #f1f5fb;
+}
+
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] svg {
+  fill: var(--cut-sidebar-muted);
+}
+
+section[data-testid="stSidebar"] button[kind="secondary"] {
+  background: var(--cut-accent);
+  border: none;
+  color: #ffffff;
+  width: 100%;
+}
+
+section[data-testid="stSidebar"] button[kind="secondary"]:hover {
+  background: var(--cut-accent-deep);
+  color: #ffffff;
+  border: none;
+}
+
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] p {
+  color: var(--cut-sidebar-text);
+}
+
+section[data-testid="stSidebar"] details[data-testid="stExpander"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+section[data-testid="stSidebar"] details[data-testid="stExpander"] summary p {
+  color: #f1f5fb;
+  font-weight: 600;
+}
+
+/* -- setup page ------------------------------------------------------------ */
+section[data-testid="stMain"] .cut-setup-card {
+  background: var(--cut-card);
+  border: 1px solid var(--cut-line);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+  padding: 34px 38px;
+  max-width: 640px;
+  margin: 5vh auto 0;
+}
+
+/* -- misc ------------------------------------------------------------------- */
+a {
+  color: var(--cut-accent-deep);
+}
+
+code {
+  font-size: 12.5px;
+}
