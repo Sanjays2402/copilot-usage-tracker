@@ -333,6 +333,16 @@ class UsageStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def count_older_than(self, days: int) -> dict:
+        """Count rows older than `days` (cutoff in UTC) without deleting them."""
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+        counts = {}
+        for table in ("user_daily", "scope_daily", "team_daily", "model_daily"):
+            counts[table] = self.conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE day < ?", (cutoff,)
+            ).fetchone()[0]
+        return counts
+
     def purge_older_than(self, days: int) -> dict:
         """Delete rows older than `days` (cutoff in UTC); returns per-table counts."""
         cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()

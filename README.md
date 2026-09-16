@@ -144,6 +144,14 @@ Built so a security review can say yes:
 Full threat model and verification steps: [SECURITY.md](SECURITY.md).
 Enterprise deployment guide: [docs/ENTERPRISE.md](docs/ENTERPRISE.md).
 
+## Retention and purging
+
+`copilot-usage purge --days 90` deletes stored rows older than 90 days across all
+usage tables (per-table counts are reported back). To preview what a purge
+would delete before committing to it, run `copilot-usage purge --days 90 --dry-run`.
+Omit `--days` and the window comes from `privacy.retention_days` in
+`policy.yaml`.
+
 ## FAQ
 
 **Where does the data come from?**

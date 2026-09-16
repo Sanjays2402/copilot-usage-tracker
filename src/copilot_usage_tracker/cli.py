@@ -86,7 +86,13 @@ def init_policy(preset: str, output: str | None) -> None:
     default=None,
     help="Purge rows older than N days (default: policy retention_days)",
 )
-def purge(days: int | None) -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report how many rows would be purged without deleting anything",
+)
+def purge(days: int | None, dry_run: bool) -> None:
     """Delete stored rows older than the retention window."""
     policy = load_policy()
     days = days if days is not None else policy.privacy.retention_days
@@ -97,6 +103,12 @@ def purge(days: int | None) -> None:
         )
     settings = load_settings(policy, require_token=False)
     store = UsageStore(settings.db_path)
+    if dry_run:
+        counts = store.count_older_than(days)
+        store.close()
+        total = sum(counts.values())
+        click.echo(f"Would purge {total} rows older than {days} days: {counts}")
+        return
     counts = store.purge_older_than(days)
     store.close()
     total = sum(counts.values())

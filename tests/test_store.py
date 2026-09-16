@@ -31,6 +31,13 @@ def test_purge_older_than_removes_old_only(store):
     assert store.top_users("2099-01")[0]["user_login"] == "bob"
 
 
+def test_count_older_than_does_not_delete(store):
+    counts = store.count_older_than(30)
+    assert counts == {"user_daily": 1, "scope_daily": 1, "team_daily": 1, "model_daily": 1}
+    # old rows are still there — nothing was deleted
+    assert store.monthly_credits("2020-01") > 0
+
+
 def test_purge_zero_days_keeps_nothing_old():
     # days=0 -> cutoff is today; the 2020 rows are still older
     import tempfile
