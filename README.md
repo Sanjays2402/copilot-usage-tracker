@@ -27,10 +27,10 @@ The Windows installer:
 ![Windows setup wizard: license agreement](docs/screenshots/installer-license.png)
 ![Windows setup wizard: installing](docs/screenshots/installer-progress.png)
 
-*Provenance: the setup and installer shots were captured on a genuine
-Windows machine during CI. The dashboard shots render fictional demo data
+*Provenance: the app screenshots render fictional demo data
 (`docs/screenshots/seed_demo.py`) in a headless browser — no real user
-data.*
+data. The installer shots were captured on a genuine Windows machine
+during CI.*
 
 ## Why now
 
